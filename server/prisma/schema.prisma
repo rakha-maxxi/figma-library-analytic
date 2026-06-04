@@ -1,0 +1,244 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DIRECT_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model FigmaConnection {
+  id                   String    @id @default(uuid())
+  name                 String    @default("Default Figma Connection")
+  encryptedAccessToken String    @map("encrypted_access_token")
+  tokenType            String    @default("personal_access_token") @map("token_type")
+  status               String    @default("connected")
+  connectedUserName    String?   @map("connected_user_name")
+  connectedUserEmail   String?   @map("connected_user_email")
+  lastValidatedAt      DateTime? @map("last_validated_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@map("figma_connections")
+}
+
+model SourceFile {
+  id                     String    @id @default(uuid())
+  figmaFileKey           String    @unique @map("figma_file_key")
+  name                   String
+  figmaUrl               String    @map("figma_url")
+  status                 String    @default("active")
+  lastComponentRefreshAt DateTime? @map("last_component_refresh_at")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  components SourceComponent[]
+
+  @@map("source_files")
+}
+
+model SourceComponent {
+  id                 String   @id @default(uuid())
+  sourceFileId       String   @map("source_file_id")
+  componentKey       String?  @map("component_key")
+  componentNodeId    String   @map("component_node_id")
+  componentName      String   @map("component_name")
+  componentSetName   String?  @map("component_set_name")
+  pageName           String?  @map("page_name")
+  description        String?
+  status             String   @default("active")
+  firstImportedAt    DateTime @default(now()) @map("first_imported_at")
+  lastSeenInSourceAt DateTime @default(now()) @map("last_seen_in_source_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  sourceFile     SourceFile            @relation(fields: [sourceFileId], references: [id], onDelete: Cascade)
+  usageCurrent   ComponentUsageCurrent[]
+  usageSnapshots UsageSnapshot[]
+  usageInstances UsageInstance[]
+  usageChanges   UsageChange[]
+
+  @@unique([sourceFileId, componentNodeId])
+  @@map("source_components")
+}
+
+model RegisteredFile {
+  id                     String    @id @default(uuid())
+  figmaFileKey           String    @unique @map("figma_file_key")
+  name                   String
+  figmaUrl               String    @map("figma_url")
+  status                 String    @default("not_scanned")
+  trackingEnabled        Boolean   @default(true) @map("tracking_enabled")
+  lastScanJobId          String?   @map("last_scan_job_id")
+  lastScanStatus         String?   @map("last_scan_status")
+  lastScanAttemptAt      DateTime? @map("last_scan_attempt_at")
+  lastSuccessfulScanAt   DateTime? @map("last_successful_scan_at")
+  totalInstances         Int       @default(0) @map("total_instances")
+  uniqueComponentsUsed   Int       @default(0) @map("unique_components_used")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  scanJobs       ScanJob[]
+  usageCurrent   ComponentUsageCurrent[]
+  usageSnapshots UsageSnapshot[]
+  usageInstances UsageInstance[]
+  usageChanges   UsageChange[]
+
+  @@map("registered_files")
+}
+
+model ScanBatch {
+  id             String    @id @default(uuid())
+  status         String    @default("pending")
+  totalFiles     Int       @default(0) @map("total_files")
+  completedFiles Int       @default(0) @map("completed_files")
+  failedFiles    Int       @default(0) @map("failed_files")
+  startedAt      DateTime? @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  scanJobs ScanJob[]
+
+  @@map("scan_batches")
+}
+
+model ScanJob {
+  id                   String    @id @default(uuid())
+  batchId              String?   @map("batch_id")
+  registeredFileId     String    @map("registered_file_id")
+  status               String    @default("pending")
+  startedAt            DateTime? @map("started_at")
+  finishedAt           DateTime? @map("finished_at")
+  durationMs           Int?      @map("duration_ms")
+  errorCode            String?   @map("error_code")
+  errorMessage         String?   @map("error_message")
+  retryAfterSeconds    Int?      @map("retry_after_seconds")
+  totalInstances       Int       @default(0) @map("total_instances")
+  uniqueComponentsUsed Int       @default(0) @map("unique_components_used")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  batch          ScanBatch?          @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  registeredFile RegisteredFile      @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+  usageSnapshots UsageSnapshot[]
+  usageChanges   UsageChange[]
+
+  @@map("scan_jobs")
+}
+
+model ComponentUsageCurrent {
+  id                String    @id @default(uuid())
+  sourceComponentId String    @map("source_component_id")
+  registeredFileId  String    @map("registered_file_id")
+  instanceCount     Int       @default(0) @map("instance_count")
+  pageCount         Int       @default(0) @map("page_count")
+  frameCount        Int       @default(0) @map("frame_count")
+  lastSeenAt        DateTime? @map("last_seen_at")
+  lastScannedAt     DateTime  @map("last_scanned_at")
+  lastScanJobId     String?   @map("last_scan_job_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  sourceComponent SourceComponent @relation(fields: [sourceComponentId], references: [id], onDelete: Cascade)
+  registeredFile  RegisteredFile  @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceComponentId, registeredFileId])
+  @@map("component_usage_current")
+}
+
+model UsageSnapshot {
+  id                String   @id @default(uuid())
+  scanJobId         String   @map("scan_job_id")
+  sourceComponentId String   @map("source_component_id")
+  registeredFileId  String   @map("registered_file_id")
+  instanceCount     Int      @default(0) @map("instance_count")
+  pageCount         Int      @default(0) @map("page_count")
+  frameCount        Int      @default(0) @map("frame_count")
+  scannedAt         DateTime @default(now()) @map("scanned_at")
+
+  scanJob         ScanJob         @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+  sourceComponent SourceComponent @relation(fields: [sourceComponentId], references: [id], onDelete: Cascade)
+  registeredFile  RegisteredFile  @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+
+  @@index([sourceComponentId])
+  @@index([registeredFileId])
+  @@index([scannedAt])
+  @@map("usage_snapshots")
+}
+
+model UsageInstance {
+  id                      String    @id @default(uuid())
+  sourceComponentId       String    @map("source_component_id")
+  registeredFileId        String    @map("registered_file_id")
+  instanceNodeId          String    @map("instance_node_id")
+  instanceName            String?   @map("instance_name")
+  pageName                String?   @map("page_name")
+  frameName               String?   @map("frame_name")
+  figmaNodeUrl            String?   @map("figma_node_url")
+  usageDepth              String    @default("direct") @map("usage_depth")
+  parentSourceComponentId String?   @map("parent_source_component_id")
+  parentInstanceNodeId    String?   @map("parent_instance_node_id")
+  firstSeenAt             DateTime  @default(now()) @map("first_seen_at")
+  lastSeenAt              DateTime  @default(now()) @map("last_seen_at")
+  missingDetectedAt       DateTime? @map("missing_detected_at")
+  status                  String    @default("active")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  sourceComponent SourceComponent @relation(fields: [sourceComponentId], references: [id], onDelete: Cascade)
+  registeredFile  RegisteredFile  @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceComponentId, registeredFileId, instanceNodeId])
+  @@index([usageDepth])
+  @@map("usage_instances")
+}
+
+model UsageChange {
+  id                String   @id @default(uuid())
+  scanJobId         String   @map("scan_job_id")
+  sourceComponentId String   @map("source_component_id")
+  registeredFileId  String   @map("registered_file_id")
+  changeType        String   @map("change_type")
+  previousCount     Int      @default(0) @map("previous_count")
+  currentCount      Int      @default(0) @map("current_count")
+  difference        Int      @default(0)
+  detectedAt        DateTime @default(now()) @map("detected_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  scanJob         ScanJob         @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+  sourceComponent SourceComponent @relation(fields: [sourceComponentId], references: [id], onDelete: Cascade)
+  registeredFile  RegisteredFile  @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+
+  @@map("usage_changes")
+}
+
+model AppSetting {
+  id                          String   @id @default(uuid())
+  lowUsageInstanceThreshold   Int      @default(5) @map("low_usage_instance_threshold")
+  staleFileDaysThreshold      Int      @default(14) @map("stale_file_days_threshold")
+  scanDelayMs                 Int      @default(7000) @map("scan_delay_ms")
+  createdAt                   DateTime @default(now()) @map("created_at")
+  updatedAt                   DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+model ActivityLog {
+  id           String   @id @default(uuid())
+  eventType    String   @map("event_type")
+  title        String
+  description  String?
+  entityType   String?  @map("entity_type")
+  entityId     String?  @map("entity_id")
+  severity     String   @default("info")
+  metadataJson String?  @map("metadata_json")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([eventType])
+  @@index([severity])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("activity_logs")
+}

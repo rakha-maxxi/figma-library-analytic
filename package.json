@@ -1,0 +1,15 @@
+{
+  "scripts": {
+    "dev": "npm run dev:server & npm run dev:client",
+    "dev:client": "npm run dev --prefix client",
+    "dev:server": "npm run dev --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build:server": "npm run build --prefix server",
+    "db:push": "npm run db:push --prefix server",
+    "db:generate": "npm run db:generate --prefix server",
+    "db:studio": "npm run db:studio --prefix server"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.107.0"
+  }
+}
