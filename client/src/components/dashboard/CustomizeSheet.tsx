@@ -1,10 +1,8 @@
 import React from 'react';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from '../ui/sheet';
 import { Button } from '../ui/button';
-import { Badge } from '../ui/badge';
 import { getAllWidgetDefs } from '../../lib/widget-registry';
 import type { WidgetLayoutItem } from '../../lib/dashboard-types';
-import { SIZE_COLS } from '../../lib/dashboard-types';
 import { PlusIcon, Trash2Icon, ChevronUpIcon, ChevronDownIcon, Settings2Icon, RotateCcwIcon } from 'lucide-react';
 
 interface Props {

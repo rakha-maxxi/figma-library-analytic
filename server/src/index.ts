@@ -14,12 +14,27 @@ import dashboardRoutes from './routes/dashboard.js';
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({
-  origin: [config.appBaseUrl, 'http://localhost:5173', 'http://localhost:5174'],
+  origin: [
+    config.appBaseUrl,
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://figma-library-analytic.vercel.app',
+  ].filter(Boolean),
   credentials: true,
 }));
 
 app.use(express.json());
+
+app.get('/', (_req, res) => {
+  res.json({ status: 'ok', service: 'figma-library-analytic-api' });
+});
+
+app.get('/health', (_req, res) => {
+  res.json({ status: 'healthy', uptime: process.uptime() });
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({ data: { status: 'ok', timestamp: new Date().toISOString() } });
@@ -37,7 +52,8 @@ app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 
-app.listen(config.port, () => {
-  console.log(`Server running on http://localhost:${config.port}`);
-  console.log(`API base: http://localhost:${config.port}/api`);
+const port = process.env.PORT || 4000;
+
+app.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });

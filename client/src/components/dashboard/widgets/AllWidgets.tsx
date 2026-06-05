@@ -1,13 +1,12 @@
 import React from 'react';
 import { WidgetCard } from '../WidgetCard';
 import type { WidgetProps } from '../../../lib/widget-registry';
-import { useRegisteredFiles, useRecentChanges, useComponents, useAdoptionTrend, useInsights, useSourceFile, useScanBatches, useConnection } from '../../../hooks/useTracker';
+import { useRegisteredFiles, useRecentChanges, useComponents, useAdoptionTrend, useInsights, useScanBatches } from '../../../hooks/useTracker';
 import { Badge } from '../../ui/badge';
-import { Button } from '../../ui/button';
 import {
   LayersIcon, AlertTriangleIcon, TrendingUpIcon, TrendingDownIcon,
-  PlusCircleIcon, MinusCircleIcon, CheckCircle2Icon, RefreshCwIcon,
-  ClockIcon, FileTextIcon, ActivityIcon, RotateCwIcon, ZapIcon,
+  PlusCircleIcon, MinusCircleIcon, CheckCircle2Icon,
+  ClockIcon, FileTextIcon, ActivityIcon, ZapIcon,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 

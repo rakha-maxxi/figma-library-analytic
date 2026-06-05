@@ -69,7 +69,8 @@ export interface ScanJob {
   errorMessage: string | null;
   totalInstances: number;
   uniqueComponentsUsed: number;
-  progress: number; // 0 to 100
+  progress: number;
+  createdAt?: string;
 }
 
 export interface UsageInstance {

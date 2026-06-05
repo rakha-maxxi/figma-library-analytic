@@ -22,8 +22,6 @@ import {
   RefreshCwIcon,
   LayersIcon,
   FileSpreadsheetIcon,
-  LineChartIcon,
-  CalendarIcon,
   ExternalLinkIcon,
   SearchIcon,
   AlertTriangleIcon,

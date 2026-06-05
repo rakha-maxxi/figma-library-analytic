@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import type { WidgetLayoutItem } from '../lib/dashboard-types';
-import { loadLocalLayout, saveLocalLayout } from '../lib/dashboard-types';
+import { saveLocalLayout } from '../lib/dashboard-types';
 
 export function useDashboardLayout() {
   return useQuery<WidgetLayoutItem[]>({
