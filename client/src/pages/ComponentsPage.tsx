@@ -231,7 +231,7 @@ export const ComponentsPage: React.FC = () => {
 
       {/* Component Detail Sheet Drawer */}
       <Sheet open={!!selectedCompId} onOpenChange={(open: boolean) => { if (!open) setSelectedCompId(null); }}>
-        <SheetContent className="w-[500px] sm:max-w-[500px] border-l border-border bg-card p-6 flex flex-col gap-6 overflow-y-auto">
+        <SheetContent className="w-[500px] sm:max-w-[500px] border-l border-border bg-card flex flex-col gap-6 overflow-y-auto">
           {detail && (() => {
             const drawerParsed = parseFigmaComponentName(detail.component.componentName, detail.component.componentSetName);
             return (

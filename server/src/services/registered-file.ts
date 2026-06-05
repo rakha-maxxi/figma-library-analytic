@@ -183,3 +183,30 @@ export async function getFileComponents(id: string) {
     lastSeenAt: u.lastSeenAt?.toISOString() || u.lastScannedAt.toISOString(),
   }));
 }
+
+export async function getFileInstances(id: string, limit = 50) {
+  const instances = await prisma.usageInstance.findMany({
+    where: { registeredFileId: id, status: 'active' },
+    include: { sourceComponent: true },
+    orderBy: { lastSeenAt: 'desc' },
+    take: limit,
+  });
+
+  return instances.map(i => ({
+    id: i.id,
+    componentId: i.sourceComponentId,
+    componentName: i.sourceComponent.componentName,
+    componentSetName: i.sourceComponent.componentSetName,
+    instanceNodeId: i.instanceNodeId,
+    instanceName: i.instanceName,
+    pageName: i.pageName,
+    frameName: i.frameName,
+    figmaNodeUrl: i.figmaNodeUrl,
+    usageDepth: i.usageDepth,
+    parentSourceComponentId: i.parentSourceComponentId,
+    parentInstanceNodeId: i.parentInstanceNodeId,
+    firstSeenAt: i.firstSeenAt.toISOString(),
+    lastSeenAt: i.lastSeenAt.toISOString(),
+    status: i.status,
+  }));
+}

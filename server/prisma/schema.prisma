@@ -242,3 +242,14 @@ model ActivityLog {
   @@index([createdAt])
   @@map("activity_logs")
 }
+
+model DashboardPreference {
+  id          String   @id @default(uuid())
+  name        String   @default("Default Layout")
+  isDefault   Boolean  @default(true) @map("is_default")
+  layoutJson  String   @map("layout_json")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("dashboard_preferences")
+}

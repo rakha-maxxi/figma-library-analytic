@@ -338,18 +338,18 @@ export const useInsights = () => {
     queryKey: ['insights'],
     queryFn: async () => {
       const [unused, lowUsage, mostUsed, staleFiles, failedScans] = await Promise.all([
-        api.get<Array<{ id: string; componentName: string; componentSetName: string | null; componentKey: string | null; pageName: string | null; status: string }>>('/api/insights/unused-components'),
-        api.get<Array<{ id: string; componentName: string; componentSetName: string | null; componentKey: string | null; count: number }>>('/api/insights/low-usage-components'),
+        api.get<Array<{ id: string; componentName: string; componentSetName: string | null; componentKey: string | null; componentNodeId: string; pageName: string | null; status: string }>>('/api/insights/unused-components'),
+        api.get<Array<{ id: string; componentName: string; componentSetName: string | null; componentKey: string | null; componentNodeId: string; count: number }>>('/api/insights/low-usage-components'),
         api.get<Array<{ id: string; componentName: string; componentSetName: string | null; count: number }>>('/api/insights/most-used-components'),
         api.get<RegisteredFile[]>('/api/insights/stale-files'),
         api.get<Array<{ id: string }>>('/api/insights/failed-scans'),
       ]);
 
-      const toSourceComponent = (c: { id: string; componentName: string; componentSetName: string | null; componentKey?: string | null; pageName?: string | null; status: string }): SourceComponent => ({
+      const toSourceComponent = (c: { id: string; componentName: string; componentSetName: string | null; componentKey?: string | null; componentNodeId?: string; pageName?: string | null; status: string }): SourceComponent => ({
         id: c.id,
         sourceFileId: '',
         componentKey: c.componentKey || '',
-        componentNodeId: '',
+        componentNodeId: c.componentNodeId || '',
         componentName: c.componentName,
         componentSetName: c.componentSetName,
         pageName: c.pageName || '',
@@ -360,11 +360,11 @@ export const useInsights = () => {
       return {
         unusedComponents: unused.map(toSourceComponent),
         lowUsageComponents: lowUsage.map(c => ({
-          component: toSourceComponent({ id: c.id, componentName: c.componentName, componentSetName: c.componentSetName, componentKey: c.componentKey, pageName: null, status: 'active' }),
+          component: toSourceComponent({ id: c.id, componentName: c.componentName, componentSetName: c.componentSetName, componentKey: c.componentKey, componentNodeId: c.componentNodeId, pageName: null, status: 'active' }),
           count: c.count,
         })),
         mostUsedComponents: mostUsed.map(c => ({
-          component: toSourceComponent({ id: c.id, componentName: c.componentName, componentSetName: c.componentSetName, componentKey: null, pageName: null, status: 'active' }),
+          component: toSourceComponent({ id: c.id, componentName: c.componentName, componentSetName: c.componentSetName, componentKey: null, componentNodeId: '', pageName: null, status: 'active' }),
           count: c.count,
         })),
         staleFiles: staleFiles.map(f => ({
@@ -374,6 +374,32 @@ export const useInsights = () => {
         })),
         failedScansCount: failedScans.length,
       };
+    },
+  });
+};
+
+export const useFileInstances = (fileId: string | null) => {
+  return useQuery<Array<{
+    id: string;
+    componentId: string;
+    componentName: string;
+    componentSetName: string | null;
+    instanceNodeId: string;
+    instanceName: string | null;
+    pageName: string | null;
+    frameName: string | null;
+    figmaNodeUrl: string | null;
+    usageDepth: string;
+    parentSourceComponentId: string | null;
+    parentInstanceNodeId: string | null;
+    firstSeenAt: string;
+    lastSeenAt: string;
+    status: string;
+  }>>({
+    queryKey: ['fileInstances', fileId],
+    enabled: !!fileId,
+    queryFn: async () => {
+      return api.get(`/api/files/${fileId}/instances?limit=100`);
     },
   });
 };
@@ -497,6 +523,27 @@ export const useStartScan = () => {
       queryClient.invalidateQueries({ queryKey: ['recentChanges'] });
       queryClient.invalidateQueries({ queryKey: ['insights'] });
       queryClient.invalidateQueries({ queryKey: ['componentDetail'] });
+      queryClient.invalidateQueries({ queryKey: ['adoptionTrend'] });
+    },
+  });
+};
+
+export const useScanSingleFile = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (fileId: string) => {
+      const result = await api.post<{ scanJobId: string; batchId: string; status: string }>(`/api/scans/file/${fileId}`);
+      return result;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scanBatches'] });
+      queryClient.invalidateQueries({ queryKey: ['scanJobs'] });
+      queryClient.invalidateQueries({ queryKey: ['registeredFiles'] });
+      queryClient.invalidateQueries({ queryKey: ['fileDetail'] });
+      queryClient.invalidateQueries({ queryKey: ['fileInstances'] });
+      queryClient.invalidateQueries({ queryKey: ['components'] });
+      queryClient.invalidateQueries({ queryKey: ['recentChanges'] });
+      queryClient.invalidateQueries({ queryKey: ['insights'] });
       queryClient.invalidateQueries({ queryKey: ['adoptionTrend'] });
     },
   });

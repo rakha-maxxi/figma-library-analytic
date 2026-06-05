@@ -10,6 +10,7 @@ import componentsRoutes from './routes/components.js';
 import filesRoutes from './routes/files.js';
 import insightsRoutes from './routes/insights.js';
 import activityLogsRoutes from './routes/activity-logs.js';
+import dashboardRoutes from './routes/dashboard.js';
 
 const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/components', componentsRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/activity-logs', activityLogsRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 app.use(errorHandler);
 

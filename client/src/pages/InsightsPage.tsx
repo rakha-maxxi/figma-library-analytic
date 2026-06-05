@@ -1,5 +1,5 @@
 import React from 'react';
-import { useInsights, useStartScan, useConnection } from '../hooks/useTracker';
+import { useInsights, useStartScan, useConnection, useSourceFile } from '../hooks/useTracker';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -19,6 +19,7 @@ import { parseFigmaComponentName } from '../lib/utils';
 export const InsightsPage: React.FC = () => {
   const { data: connection } = useConnection();
   const { data: insights, isLoading } = useInsights();
+  const { data: sourceFile } = useSourceFile();
   const { mutate: startScan } = useStartScan();
 
   const handleRescanStale = () => {
@@ -157,7 +158,7 @@ export const InsightsPage: React.FC = () => {
                             <span className="text-[9px] text-muted-foreground/40 font-mono block mt-1">{comp.componentNodeId}</span>
                           </div>
                           <a 
-                            href={`https://figma.com/file/uikit_ds_2026?node-id=${comp.componentNodeId}`}
+                            href={`https://figma.com/file/${sourceFile?.figmaFileKey || ''}?node-id=${comp.componentNodeId}`}
                             target="_blank"
                             rel="noreferrer"
                             className="text-[10px] text-sky-500 hover:text-sky-400 font-semibold inline-flex items-center gap-0.5 active:scale-[0.92] shrink-0"

@@ -327,23 +327,49 @@ async function processSingleScanJob(
       });
     }
 
-    await tx.componentUsageCurrent.deleteMany({
-      where: { registeredFileId: registeredFile.id },
-    });
-
+    const now = new Date();
     for (const usage of aggregatedUsage) {
-      await tx.componentUsageCurrent.create({
-        data: {
+      await tx.componentUsageCurrent.upsert({
+        where: {
+          sourceComponentId_registeredFileId: {
+            sourceComponentId: usage.sourceComponentId,
+            registeredFileId: usage.registeredFileId,
+          },
+        },
+        update: {
+          instanceCount: usage.instanceCount,
+          pageCount: usage.pageCount,
+          frameCount: usage.frameCount,
+          lastSeenAt: now,
+          lastScannedAt: now,
+          lastScanJobId: scanJobId,
+        },
+        create: {
           sourceComponentId: usage.sourceComponentId,
           registeredFileId: usage.registeredFileId,
           instanceCount: usage.instanceCount,
           pageCount: usage.pageCount,
           frameCount: usage.frameCount,
-          lastSeenAt: new Date(),
-          lastScannedAt: new Date(),
+          lastSeenAt: now,
+          lastScannedAt: now,
           lastScanJobId: scanJobId,
         },
       });
+    }
+
+    // Remove stale current usage: components that existed before
+    // but are no longer detected (count dropped to 0)
+    const newKeys = new Set(
+      aggregatedUsage.map(u => `${u.sourceComponentId}:${u.registeredFileId}`)
+    );
+    const staleUsages = await tx.componentUsageCurrent.findMany({
+      where: { registeredFileId: registeredFile.id },
+    });
+    for (const stale of staleUsages) {
+      const key = `${stale.sourceComponentId}:${stale.registeredFileId}`;
+      if (!newKeys.has(key)) {
+        await tx.componentUsageCurrent.delete({ where: { id: stale.id } });
+      }
     }
 
     const existingInstances = await tx.usageInstance.findMany({

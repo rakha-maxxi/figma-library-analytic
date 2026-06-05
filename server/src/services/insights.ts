@@ -100,6 +100,7 @@ export async function getUnusedComponents() {
       componentName: c.componentName,
       componentSetName: c.componentSetName,
       componentKey: c.componentKey,
+      componentNodeId: c.componentNodeId,
       pageName: c.pageName,
       status: c.status,
     }));
@@ -142,6 +143,7 @@ export async function getLowUsageComponents() {
       componentName: item.component.componentName,
       componentSetName: item.component.componentSetName,
       componentKey: item.component.componentKey,
+      componentNodeId: item.component.componentNodeId,
       count: item.count,
     }));
 }

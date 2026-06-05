@@ -24,4 +24,15 @@ router.get('/:id/components', async (req, res, next) => {
   }
 });
 
+router.get('/:id/instances', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
+    const result = await registeredFileService.getFileInstances(id, limit);
+    return successResponse(res, result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;
