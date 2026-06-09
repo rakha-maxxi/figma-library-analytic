@@ -1,15 +1,18 @@
 import { prisma } from '../config/prisma.js';
 
 const DEFAULT_LAYOUT = [
-  { widgetId: 'summary_metrics', order: 1, size: 'full', visible: true, settings: {} },
-  { widgetId: 'direct_instances_trend', order: 2, size: 'large', visible: true, settings: {} },
+  { widgetId: 'health_summary', order: 1, size: 'full', visible: true, settings: {} },
+  { widgetId: 'adoption_coverage', order: 2, size: 'medium', visible: true, settings: {} },
   { widgetId: 'recent_usage_changes', order: 3, size: 'medium', visible: true, settings: {} },
-  { widgetId: 'top_used_components', order: 4, size: 'medium', visible: true, settings: {} },
-  { widgetId: 'files_needing_attention', order: 5, size: 'large', visible: true, settings: {} },
-  { widgetId: 'governance_health', order: 6, size: 'full', visible: true, settings: {} },
-  { widgetId: 'scan_success_rate', order: 7, size: 'small', visible: false, settings: {} },
-  { widgetId: 'unused_in_tracked_files', order: 8, size: 'medium', visible: false, settings: {} },
-  { widgetId: 'low_usage_components', order: 9, size: 'medium', visible: false, settings: {} },
+  { widgetId: 'direct_instances_trend', order: 4, size: 'large', visible: true, settings: {} },
+  { widgetId: 'scan_reliability', order: 5, size: 'small', visible: true, settings: {} },
+  { widgetId: 'top_used_components', order: 6, size: 'medium', visible: true, settings: {} },
+  { widgetId: 'next_actions', order: 7, size: 'medium', visible: true, settings: {} },
+  { widgetId: 'files_needing_attention', order: 8, size: 'large', visible: true, settings: {} },
+  { widgetId: 'governance_health', order: 9, size: 'small', visible: true, settings: {} },
+  { widgetId: 'scan_success_rate', order: 10, size: 'small', visible: false, settings: {} },
+  { widgetId: 'unused_in_tracked_files', order: 11, size: 'medium', visible: false, settings: {} },
+  { widgetId: 'low_usage_components', order: 12, size: 'medium', visible: false, settings: {} },
 ];
 
 export async function getLayout() {

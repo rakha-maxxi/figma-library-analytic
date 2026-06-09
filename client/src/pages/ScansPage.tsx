@@ -10,14 +10,15 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { 
-  PlayIcon, 
-  CheckCircle2Icon, 
-  XCircleIcon, 
-  AlertCircleIcon, 
+import {
+  PlayIcon,
+  CheckCircle2Icon,
+  XCircleIcon,
+  AlertCircleIcon,
   Loader2Icon,
   CalendarIcon,
-  ClockIcon
+  ClockIcon,
+  SquareIcon,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -40,22 +41,25 @@ export const ScansPage: React.FC = () => {
       toast.error('Connect Figma Access Token in settings first.');
       return;
     }
-    
-    const activeFiles = files?.filter(f => f.trackingEnabled) || [];
-    if (activeFiles.length === 0) {
-      toast.error('No active registered files to scan. Enable tracking or register a file.');
-      return;
-    }
-
     startScan(undefined, {
-      onSuccess: (batchId) => {
-        setSelectedBatchId(batchId);
-        toast.success('Crawler queue initialized.');
+      onSuccess: () => {
+        toast.success('Sequential scan batch started successfully.');
       },
       onError: (err) => {
-        toast.error(`Crawler execution error: ${(err as Error).message}`);
+        toast.error(`Scan could not be started: ${(err as Error).message}`);
       }
     });
+  };
+
+  const handleStopBatch = async (batchId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      const BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000';
+      await fetch(`${BASE}/api/scans/batches/${batchId}/stop`, { method: 'POST' });
+      toast.success('Scan batch stopped.');
+    } catch {
+      toast.error('Failed to stop batch.');
+    }
   };
 
   const renderBatchStatus = (status: string) => {
@@ -129,10 +133,21 @@ export const ScansPage: React.FC = () => {
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-semibold text-foreground truncate max-w-[140px] font-mono">
+                    <span className="text-xs font-semibold text-foreground truncate max-w-[120px] font-mono">
                       {batch.id}
                     </span>
-                    {renderBatchStatus(batch.status)}
+                    <div className="flex items-center gap-1.5">
+                      {batch.status === 'running' && (
+                        <button
+                          onClick={(e) => handleStopBatch(batch.id, e)}
+                          className="text-rose-500 hover:text-rose-400 p-0.5 rounded active:scale-90 transition-all"
+                          title="Force stop"
+                        >
+                          <SquareIcon className="size-3.5" />
+                        </button>
+                      )}
+                      {renderBatchStatus(batch.status)}
+                    </div>
                   </div>
 
                   <div className="flex items-center gap-4 text-[10px] text-muted-foreground">
@@ -213,12 +228,15 @@ export const ScansPage: React.FC = () => {
                               <span className="text-xs font-semibold text-foreground">{filename}</span>
                             </div>
                             <span className="text-[10px] text-muted-foreground font-mono">
-                              {job.progress}%
+                              {job.status === 'success' ? '100%' : job.status === 'running' ? '' : '0%'}
                             </span>
                           </div>
 
                           {job.status === 'running' && (
-                            <Progress value={job.progress} className="h-1 bg-muted" />
+                            <div className="flex items-center gap-2 text-[10px] text-sky-400 bg-sky-500/5 border border-sky-500/20 rounded p-2">
+                              <Loader2Icon className="size-3 animate-spin shrink-0" />
+                              <span>{job.scanPhase || 'Scanning...'}</span>
+                            </div>
                           )}
 
                           {job.status === 'success' && (

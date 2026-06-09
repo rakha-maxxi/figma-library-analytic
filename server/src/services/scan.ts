@@ -5,11 +5,34 @@ import {
   buildSourceComponentMap,
   detectSourceInstances,
   aggregateUsage,
+  type DetectedInstance,
 } from '../scanner/detection.js';
 import { detectChanges } from '../scanner/change-detection.js';
 import { logActivity } from './activity-log.js';
+import { detectDetachedCandidates, type DetachedCandidate } from '../scanner/detached-detector.js';
+import type { FigmaFileResponse } from '../figma/figma-client.js';
 
 let isScanRunning = false;
+const cancelledBatchIds = new Set<string>();
+
+export async function stopScanBatch(batchId: string) {
+  cancelledBatchIds.add(batchId);
+
+  await prisma.scanJob.updateMany({
+    where: { batchId, status: 'pending' },
+    data: { status: 'cancelled', finishedAt: new Date() },
+  });
+
+  const batch = await prisma.scanBatch.findUnique({ where: { id: batchId } });
+  if (batch && batch.status === 'running') {
+    await prisma.scanBatch.update({
+      where: { id: batchId },
+      data: { status: 'cancelled', finishedAt: new Date() },
+    });
+  }
+
+  return { stopped: true };
+}
 
 export async function getScanBatches() {
   return prisma.scanBatch.findMany({
@@ -162,6 +185,15 @@ async function processScanBatch(batchId: string) {
     const scanDelayMs = settings?.scanDelayMs || 7000;
 
     for (let i = 0; i < jobs.length; i++) {
+      // Check if batch was cancelled
+      if (cancelledBatchIds.has(batchId)) {
+        await prisma.scanJob.updateMany({
+          where: { batchId, status: 'pending' },
+          data: { status: 'cancelled', finishedAt: new Date() },
+        });
+        break;
+      }
+
       const job = jobs[i];
       try {
         await processSingleScanJob(job.id, job.registeredFile);
@@ -221,15 +253,19 @@ async function processScanBatch(batchId: string) {
           data: { failedFiles: { increment: 1 } },
         });
 
-        await prisma.registeredFile.update({
-          where: { id: job.registeredFileId },
-          data: {
-            lastScanJobId: job.id,
-            lastScanStatus: 'failed',
-            lastScanAttemptAt: new Date(),
-            status: 'failed',
-          },
-        });
+        try {
+          await prisma.registeredFile.update({
+            where: { id: job.registeredFileId },
+            data: {
+              lastScanJobId: job.id,
+              lastScanStatus: 'failed',
+              lastScanAttemptAt: new Date(),
+              status: 'failed',
+            },
+          });
+        } catch {
+          // file was deleted during scan — skip status update
+        }
       }
 
       if (i < jobs.length - 1) {
@@ -266,6 +302,131 @@ async function processScanBatch(batchId: string) {
   }
 }
 
+async function updateScanPhase(jobId: string, phase: string) {
+  await prisma.scanJob.update({
+    where: { id: jobId },
+    data: { errorMessage: phase },
+  }).catch(() => { /* ignore if job deleted mid-scan */ });
+}
+
+async function upsertInstances(fileId: string, detectedInstances: DetectedInstance[]) {
+  const existingInstances = await prisma.usageInstance.findMany({
+    where: { registeredFileId: fileId, status: 'active' },
+  });
+
+  const detectedNodeIds = new Set(
+    detectedInstances.map(i => `${i.sourceComponentId}:${i.registeredFileId}:${i.instanceNodeId}`)
+  );
+
+  for (const inst of detectedInstances) {
+    await prisma.usageInstance.upsert({
+      where: {
+        sourceComponentId_registeredFileId_instanceNodeId: {
+          sourceComponentId: inst.sourceComponentId,
+          registeredFileId: inst.registeredFileId,
+          instanceNodeId: inst.instanceNodeId,
+        },
+      },
+      update: {
+        instanceName: inst.instanceName,
+        pageName: inst.pageName,
+        frameName: inst.frameName,
+        figmaNodeUrl: inst.figmaNodeUrl,
+        usageDepth: inst.usageDepth,
+        parentSourceComponentId: inst.parentSourceComponentId,
+        parentInstanceNodeId: inst.parentInstanceNodeId,
+        lastSeenAt: new Date(),
+        status: 'active',
+        missingDetectedAt: null,
+      },
+      create: {
+        sourceComponentId: inst.sourceComponentId,
+        registeredFileId: inst.registeredFileId,
+        instanceNodeId: inst.instanceNodeId,
+        instanceName: inst.instanceName,
+        pageName: inst.pageName,
+        frameName: inst.frameName,
+        figmaNodeUrl: inst.figmaNodeUrl,
+        usageDepth: inst.usageDepth,
+        parentSourceComponentId: inst.parentSourceComponentId,
+        parentInstanceNodeId: inst.parentInstanceNodeId,
+        status: 'active',
+      },
+    });
+  }
+
+  for (const existing of existingInstances) {
+    const key = `${existing.sourceComponentId}:${existing.registeredFileId}:${existing.instanceNodeId}`;
+    if (!detectedNodeIds.has(key)) {
+      await prisma.usageInstance.update({
+        where: { id: existing.id },
+        data: { status: 'missing', missingDetectedAt: new Date() },
+      });
+    }
+  }
+}
+
+async function saveDetachedCandidates(scanJobId: string, fileId: string, candidates: DetachedCandidate[]) {
+  // Mark existing candidates as resolved if not detected this time
+  const existingCandidates = await prisma.detachedComponentCandidate.findMany({
+    where: { registeredFileId: fileId, status: { not: 'resolved' } },
+  });
+
+  const detectedKeys = new Set(candidates.map(c => `${c.candidateNodeId}:${c.detectionType}`));
+
+  for (const existing of existingCandidates) {
+    const key = `${existing.candidateNodeId}:${existing.detectionType}`;
+    if (!detectedKeys.has(key) && existing.status === 'open') {
+      await prisma.detachedComponentCandidate.update({
+        where: { id: existing.id },
+        data: { status: 'resolved' },
+      });
+    }
+  }
+
+  // Upsert newly detected candidates
+  for (const cand of candidates) {
+    await prisma.detachedComponentCandidate.upsert({
+      where: {
+        registeredFileId_candidateNodeId_detectionType: {
+          registeredFileId: fileId,
+          candidateNodeId: cand.candidateNodeId,
+          detectionType: cand.detectionType,
+        },
+      },
+      update: {
+        sourceComponentId: cand.sourceComponentId,
+        candidateNodeName: cand.candidateNodeName,
+        pageName: cand.pageName,
+        frameName: cand.frameName,
+        figmaNodeUrl: cand.figmaNodeUrl,
+        confidenceScore: cand.confidenceScore,
+        confidenceLevel: cand.confidenceLevel,
+        matchedSignalsJson: JSON.stringify(cand.matchedSignals),
+        reason: cand.reason,
+        status: 'open',
+        lastSeenAt: new Date(),
+      },
+      create: {
+        registeredFileId: fileId,
+        sourceComponentId: cand.sourceComponentId,
+        scanJobId,
+        candidateNodeId: cand.candidateNodeId,
+        candidateNodeName: cand.candidateNodeName,
+        pageName: cand.pageName,
+        frameName: cand.frameName,
+        figmaNodeUrl: cand.figmaNodeUrl,
+        detectionType: cand.detectionType,
+        confidenceScore: cand.confidenceScore,
+        confidenceLevel: cand.confidenceLevel,
+        matchedSignalsJson: JSON.stringify(cand.matchedSignals),
+        reason: cand.reason,
+        status: 'open',
+      },
+    });
+  }
+}
+
 async function processSingleScanJob(
   scanJobId: string,
   registeredFile: { id: string; figmaFileKey: string; name: string },
@@ -296,8 +457,12 @@ async function processSingleScanJob(
 
   const sourceComponentMap = buildSourceComponentMap(sourceComponents);
 
+  await updateScanPhase(scanJobId, 'Fetching Figma file...');
+
   const figma = await getFigmaClient();
   const figmaFile = await figma.getFile(registeredFile.figmaFileKey);
+
+  await updateScanPhase(scanJobId, 'Detecting component instances...');
 
   const detectedInstances = detectSourceInstances({
     figmaFile,
@@ -307,6 +472,54 @@ async function processSingleScanJob(
   });
 
   const aggregatedUsage = aggregateUsage(detectedInstances);
+
+  // Detached component detection pass
+  await updateScanPhase(scanJobId, 'Scanning for detached components...');
+  const scannedSourceIds = new Set(detectedInstances.map(i => i.sourceComponentId));
+
+  // Build simple fingerprints from source component metadata
+  const fingerprints = new Map<string, {
+    sourceComponentId: string;
+    componentName: string;
+    componentSetName: string | null;
+    propertyKeys: string[];
+    childNames: string[];
+    childTypes: string[];
+    childCount: number;
+    textLayerCount: number;
+    vectorCount: number;
+    autoLayoutType: string | null;
+    fillCount: number;
+    strokeCount: number;
+    cornerRadius: number | null;
+  }>();
+  for (const comp of sourceComponents) {
+    fingerprints.set(comp.id, {
+      sourceComponentId: comp.id,
+      componentName: comp.componentName,
+      componentSetName: comp.componentSetName,
+      propertyKeys: [],
+      childNames: [],
+      childTypes: [],
+      childCount: 0,
+      textLayerCount: 0,
+      vectorCount: 0,
+      autoLayoutType: null,
+      fillCount: 0,
+      strokeCount: 0,
+      cornerRadius: null,
+    });
+  }
+
+  const detachedCandidates = detectDetachedCandidates({
+    figmaFile: figmaFile as unknown as FigmaFileResponse,
+    registeredFileId: registeredFile.id,
+    registeredFileKey: registeredFile.figmaFileKey,
+    fingerprints,
+    scannedSourceComponentIds: scannedSourceIds,
+  });
+
+  await updateScanPhase(scanJobId, `Saving ${aggregatedUsage.length} components, ${detectedInstances.length} instances, ${detachedCandidates.length} detached...`);
 
   const previousUsage = await prisma.componentUsageCurrent.findMany({
     where: { registeredFileId: registeredFile.id },
@@ -372,59 +585,6 @@ async function processSingleScanJob(
       }
     }
 
-    const existingInstances = await tx.usageInstance.findMany({
-      where: { registeredFileId: registeredFile.id, status: 'active' },
-    });
-
-    const detectedNodeIds = new Set(detectedInstances.map(i => `${i.sourceComponentId}:${i.registeredFileId}:${i.instanceNodeId}`));
-
-    for (const inst of detectedInstances) {
-      await tx.usageInstance.upsert({
-        where: {
-          sourceComponentId_registeredFileId_instanceNodeId: {
-            sourceComponentId: inst.sourceComponentId,
-            registeredFileId: inst.registeredFileId,
-            instanceNodeId: inst.instanceNodeId,
-          },
-        },
-        update: {
-          instanceName: inst.instanceName,
-          pageName: inst.pageName,
-          frameName: inst.frameName,
-          figmaNodeUrl: inst.figmaNodeUrl,
-          usageDepth: inst.usageDepth,
-          parentSourceComponentId: inst.parentSourceComponentId,
-          parentInstanceNodeId: inst.parentInstanceNodeId,
-          lastSeenAt: new Date(),
-          status: 'active',
-          missingDetectedAt: null,
-        },
-        create: {
-          sourceComponentId: inst.sourceComponentId,
-          registeredFileId: inst.registeredFileId,
-          instanceNodeId: inst.instanceNodeId,
-          instanceName: inst.instanceName,
-          pageName: inst.pageName,
-          frameName: inst.frameName,
-          figmaNodeUrl: inst.figmaNodeUrl,
-          usageDepth: inst.usageDepth,
-          parentSourceComponentId: inst.parentSourceComponentId,
-          parentInstanceNodeId: inst.parentInstanceNodeId,
-          status: 'active',
-        },
-      });
-    }
-
-    for (const existing of existingInstances) {
-      const key = `${existing.sourceComponentId}:${existing.registeredFileId}:${existing.instanceNodeId}`;
-      if (!detectedNodeIds.has(key)) {
-        await tx.usageInstance.update({
-          where: { id: existing.id },
-          data: { status: 'missing', missingDetectedAt: new Date() },
-        });
-      }
-    }
-
     const changes = detectChanges(
       aggregatedUsage.map(u => ({
         sourceComponentId: u.sourceComponentId,
@@ -452,7 +612,12 @@ async function processSingleScanJob(
         },
       });
     }
-  });
+  }, { timeout: 120000, maxWait: 15000 });
+
+  await upsertInstances(registeredFile.id, detectedInstances);
+
+  // Save/update detached component candidates
+  await saveDetachedCandidates(scanJobId, registeredFile.id, detachedCandidates);
 
   const totalInstances = aggregatedUsage.reduce((sum, u) => sum + u.instanceCount, 0);
   const uniqueComponentsUsed = aggregatedUsage.length;
@@ -466,6 +631,7 @@ async function processSingleScanJob(
       durationMs,
       totalInstances,
       uniqueComponentsUsed,
+      errorMessage: null,
     },
   });
 

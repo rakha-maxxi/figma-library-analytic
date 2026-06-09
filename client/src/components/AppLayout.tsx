@@ -11,7 +11,7 @@ import {
   PlayIcon,
   PanelLeftClose,
   PanelLeftOpen,
-  ScrollTextIcon
+  ScrollTextIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useConnection, useStartScan, useScanBatches } from '../hooks/useTracker';

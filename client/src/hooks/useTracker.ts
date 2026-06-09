@@ -19,19 +19,21 @@ export const useConnection = () => {
       const data = await api.get<{
         connected: boolean;
         status: string;
+        authType: string | null;
         lastValidatedAt: string | null;
         connectedUserName: string | null;
         connectedUserEmail: string | null;
       }>('/api/figma/status');
       return {
         id: 'conn-1',
-        name: 'Default Figma Connection',
+        name: data.authType === 'oauth' ? 'Figma OAuth' : 'Default Figma Connection',
         connected: data.connected,
         pat: data.connected ? '••••••••••••••••' : '',
         userName: data.connectedUserName || '',
         userEmail: data.connectedUserEmail || '',
         lastValidatedAt: data.lastValidatedAt,
-      };
+        authType: data.authType,
+      } as FigmaConnection & { authType?: string };
     },
   });
 };
@@ -124,6 +126,9 @@ export const useComponentDetail = (componentId: string | null) => {
         }>;
         trend: Array<{ date: string; count: number }>;
       }>(`/api/components/${componentId}`);
+
+      if (!data) return null;
+
 
       if (!data) return null;
 
@@ -273,7 +278,8 @@ export const useScanJobs = (batchId?: string) => {
         errorMessage: j.errorMessage,
         totalInstances: j.totalInstances,
         uniqueComponentsUsed: j.uniqueComponentsUsed,
-        progress: j.status === 'success' ? 100 : j.status === 'running' ? 50 : j.status === 'pending' ? 0 : j.status === 'failed' ? (j.durationMs ? 80 : 30) : 0,
+        progress: j.status === 'success' ? 100 : j.status === 'pending' ? 0 : j.status === 'failed' ? 0 : 0,
+        scanPhase: j.status === 'running' ? (j.errorMessage || 'Scanning...') : null,
       }));
     },
     refetchInterval: (query) => {
@@ -400,6 +406,16 @@ export const useFileInstances = (fileId: string | null) => {
     enabled: !!fileId,
     queryFn: async () => {
       return api.get(`/api/files/${fileId}/instances?limit=100`);
+    },
+  });
+};
+
+export const useDetachedCandidates = (fileId: string | null) => {
+  return useQuery<Array<import('../lib/mockDb').DetachedComponentCandidate>>({
+    queryKey: ['detachedCandidates', fileId],
+    enabled: !!fileId,
+    queryFn: async () => {
+      return api.get(`/api/files/${fileId}/detached`);
     },
   });
 };
@@ -621,4 +637,3 @@ export const useActivityLogs = (filters?: {
     },
   });
 };
-

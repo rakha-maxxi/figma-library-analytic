@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { config } from './config/index.js';
@@ -11,6 +12,8 @@ import filesRoutes from './routes/files.js';
 import insightsRoutes from './routes/insights.js';
 import activityLogsRoutes from './routes/activity-logs.js';
 import dashboardRoutes from './routes/dashboard.js';
+import figmaOauthRoutes from './routes/figma-oauth.js';
+import { startAutoScanScheduler } from './services/auto-scan.js';
 
 const app = express();
 
@@ -49,6 +52,7 @@ app.use('/api/files', filesRoutes);
 app.use('/api/insights', insightsRoutes);
 app.use('/api/activity-logs', activityLogsRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/figma/oauth', figmaOauthRoutes);
 
 app.use(errorHandler);
 
@@ -56,4 +60,7 @@ const port = process.env.PORT || 4000;
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
+  const cid = process.env.FIGMA_OAUTH_CLIENT_ID || '';
+  console.log(`Figma OAuth Client ID: ${cid ? cid.slice(0, 6) + '...' : '(EMPTY!)'}`);
+  startAutoScanScheduler();
 });

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppLayout } from './components/AppLayout';
 import { OverviewPage } from './pages/OverviewPage';
 import { ComponentsPage } from './pages/ComponentsPage';
@@ -23,8 +23,13 @@ import {
   InfoIcon
 } from 'lucide-react';
 
+const getSavedTab = () => {
+  try { return localStorage.getItem('ds_tracker_tab') || 'overview'; } catch { return 'overview'; }
+};
+
 const App: React.FC = () => {
-  const [tab, setTab] = useState('overview');
+  const [tab, setTabState] = useState(getSavedTab);
+  const setTab = (t: string) => { setTabState(t); try { localStorage.setItem('ds_tracker_tab', t); } catch { /* ignore */ } };
   const { data: connection, isLoading: isConnLoading } = useConnection();
   const { data: sourceFile, isLoading: isSourceLoading } = useSourceFile();
 
@@ -40,6 +45,21 @@ const App: React.FC = () => {
   const { mutate: registerSource, isPending: isRegisteringSource } = useRegisterSourceFile();
   const { mutate: addConsumer, isPending: isAddingConsumer } = useAddRegisteredFile();
   const { mutate: startScan, isPending: isScanning } = useStartScan();
+
+  // Handle OAuth callback redirect
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthStatus = params.get('oauth');
+    const tabParam = params.get('tab');
+    if (tabParam === 'settings') setTab('settings');
+    if (oauthStatus === 'success') {
+      toast.success('Connected with Figma OAuth');
+      window.history.replaceState({}, '', '/');
+    } else if (oauthStatus === 'error') {
+      toast.error('OAuth connection failed. Please try again.');
+      window.history.replaceState({}, '', '/');
+    }
+  }, []);
 
   const handleConnectToken = (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,32 +205,37 @@ const App: React.FC = () => {
               <CardHeader>
                 <CardTitle className="text-sm font-semibold flex items-center gap-2">
                   <KeyIcon className="size-4 text-sky-500" />
-                  Connect Figma PAT
+                  Connect Figma Account
                 </CardTitle>
                 <CardDescription className="text-xs">
-                  Generate a Personal Access Token from your Figma Account Settings to permit scanning access.
+                  Authorize via OAuth (recommended) or use a Personal Access Token.
                 </CardDescription>
               </CardHeader>
-              <form onSubmit={handleConnectToken}>
-                <CardContent className="flex flex-col gap-4">
+              <CardContent className="flex flex-col gap-4">
+                <Button
+                  className="w-full text-xs gap-2 h-10"
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/figma/oauth/start`;
+                  }}
+                >
+                  <ShieldCheckIcon className="size-4" />
+                  Connect with Figma OAuth
+                </Button>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-[10px]"><span className="bg-card px-2 text-muted-foreground">or use PAT</span></div>
+                </div>
+                <form onSubmit={handleConnectToken}>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="patInput" className="text-xs text-muted-foreground">Figma Personal Access Token</Label>
-                    <Input 
-                      id="patInput"
-                      type="password"
-                      value={pat}
-                      onChange={(e) => setPat(e.target.value)}
-                      placeholder="fig_pat_..." 
-                      className="text-xs font-mono"
-                    />
+                    <Input id="patInput" type="password" value={pat} onChange={(e) => setPat(e.target.value)} placeholder="fig_pat_..." className="text-xs font-mono" />
                   </div>
-                </CardContent>
-                <CardFooter>
-                  <Button type="submit" disabled={isConnecting} className="w-full text-xs active:scale-[0.98]">
-                    {isConnecting ? 'Connecting...' : 'Connect & Next'}
-                  </Button>
-                </CardFooter>
+                  <CardFooter className="px-0 pb-0 pt-3">
+                    <Button type="submit" disabled={isConnecting} className="w-full text-xs active:scale-[0.98]">
+                      {isConnecting ? 'Connecting...' : 'Connect via PAT & Next'}
+                    </Button>
+                  </CardFooter>
               </form>
+              </CardContent>
             </Card>
           )}
 

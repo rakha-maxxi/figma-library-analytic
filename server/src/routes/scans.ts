@@ -73,4 +73,14 @@ router.post('/:scanJobId/retry', async (req, res, next) => {
   }
 });
 
+router.post('/batches/:batchId/stop', async (req, res, next) => {
+  try {
+    const { batchId } = req.params;
+    const result = await scanService.stopScanBatch(batchId);
+    return successResponse(res, result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

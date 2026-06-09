@@ -87,7 +87,7 @@ export async function addRegisteredFiles(figmaUrls: string[]) {
   return { added, duplicates, failed };
 }
 
-export async function updateRegisteredFile(id: string, data: { trackingEnabled?: boolean }) {
+export async function updateRegisteredFile(id: string, data: { trackingEnabled?: boolean; scanIntervalMinutes?: number | null }) {
   const file = await prisma.registeredFile.findUnique({ where: { id } });
   if (!file) {
     throw new AppError(ErrorCodes.REGISTERED_FILE_NOT_FOUND, 'Registered file not found', 404);
@@ -99,6 +99,9 @@ export async function updateRegisteredFile(id: string, data: { trackingEnabled?:
     updateData.status = data.trackingEnabled
       ? (file.lastSuccessfulScanAt ? 'healthy' : 'not_scanned')
       : 'disabled';
+  }
+  if (data.scanIntervalMinutes !== undefined) {
+    updateData.scanIntervalMinutes = data.scanIntervalMinutes;
   }
 
   const updated = await prisma.registeredFile.update({
@@ -209,4 +212,56 @@ export async function getFileInstances(id: string, limit = 50) {
     lastSeenAt: i.lastSeenAt.toISOString(),
     status: i.status,
   }));
+}
+
+export async function getDetachedCandidates(fileId: string) {
+  const candidates = await prisma.detachedComponentCandidate.findMany({
+    where: { registeredFileId: fileId, status: { not: 'resolved' } },
+    include: { scanJob: true },
+    orderBy: [
+      { confidenceScore: 'desc' },
+      { lastSeenAt: 'desc' },
+    ],
+  });
+
+  const sourceComponents = await prisma.sourceComponent.findMany({
+    where: { id: { in: candidates.map(c => c.sourceComponentId).filter(Boolean) as string[] } },
+  });
+  const compMap = new Map(sourceComponents.map(c => [c.id, c]));
+
+  return candidates.map(c => {
+    const sc = c.sourceComponentId ? compMap.get(c.sourceComponentId) : null;
+    return {
+      id: c.id,
+      registeredFileId: c.registeredFileId,
+      sourceComponentId: c.sourceComponentId,
+      sourceComponentName: sc?.componentName || null,
+      scanJobId: c.scanJobId,
+      candidateNodeId: c.candidateNodeId,
+      candidateNodeName: c.candidateNodeName,
+      pageName: c.pageName,
+      frameName: c.frameName,
+      figmaNodeUrl: c.figmaNodeUrl,
+      detectionType: c.detectionType,
+      confidenceScore: c.confidenceScore,
+      confidenceLevel: c.confidenceLevel,
+      matchedSignals: c.matchedSignalsJson ? JSON.parse(c.matchedSignalsJson) : [],
+      reason: c.reason,
+      status: c.status,
+      firstSeenAt: c.firstSeenAt.toISOString(),
+      lastSeenAt: c.lastSeenAt.toISOString(),
+    };
+  });
+}
+
+export async function updateDetachedCandidate(candidateId: string, status: string) {
+  const candidate = await prisma.detachedComponentCandidate.findUnique({ where: { id: candidateId } });
+  if (!candidate) {
+    throw new AppError('CANDIDATE_NOT_FOUND', 'Detached candidate not found', 404);
+  }
+  const updated = await prisma.detachedComponentCandidate.update({
+    where: { id: candidateId },
+    data: { status },
+  });
+  return { id: updated.id, status: updated.status };
 }

@@ -21,7 +21,7 @@ import {
   Settings2Icon, 
   AlertTriangleIcon,
   Trash2Icon,
-  RefreshCwIcon
+  RefreshCwIcon,
 } from 'lucide-react';
 
 export const SettingsPage: React.FC = () => {
@@ -119,10 +119,10 @@ export const SettingsPage: React.FC = () => {
           <CardHeader>
             <CardTitle className="text-sm font-semibold flex items-center gap-2">
               <KeyRoundIcon className="size-4 text-sky-500" />
-              Figma Personal Access Token
+              Figma Connection
             </CardTitle>
             <CardDescription className="text-xs">
-              Establish connection using a secure personal access token. The token is never exposed to the client.
+              Connect using Figma OAuth (recommended) or Personal Access Token.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -131,47 +131,40 @@ export const SettingsPage: React.FC = () => {
                 <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-md p-4 flex items-center gap-3">
                   <ShieldCheckIcon className="size-5 text-emerald-500" />
                   <div>
-                    <h4 className="text-xs font-semibold text-foreground">Secure Connection Active</h4>
+                    <h4 className="text-xs font-semibold text-foreground">
+                      {(connection as Record<string, unknown>).authType === 'oauth'
+                        ? 'Connected with Figma OAuth'
+                        : 'Connected with Personal Access Token'}
+                    </h4>
                     <p className="text-[10px] text-muted-foreground mt-0.5">
                       Authenticated as {connection.userName} ({connection.userEmail})
                     </p>
                   </div>
                 </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs text-muted-foreground">Connection Display Name</span>
-                  <span className="text-xs font-medium text-foreground">{connection.name}</span>
-                </div>
               </div>
             ) : (
-              <form onSubmit={handleConnect} className="flex flex-col gap-4 pb-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="connName" className="text-xs text-muted-foreground">Connection Name</Label>
-                  <Input 
-                    id="connName" 
-                    value={connName}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setConnName(e.target.value)}
-                    placeholder="e.g. Default Connection" 
-                    className="text-xs"
-                  />
+              <div className="flex flex-col gap-4">
+                <Button
+                  className="w-full text-xs gap-2 h-10"
+                  onClick={() => {
+                    window.location.href = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:4000'}/api/figma/oauth/start`;
+                  }}
+                >
+                  <ShieldCheckIcon className="size-4" />
+                  Connect with Figma OAuth
+                </Button>
+                <p className="text-[10px] text-muted-foreground text-center">Recommended</p>
+
+                <div className="relative my-1">
+                  <div className="absolute inset-0 flex items-center"><span className="w-full border-t border-border" /></div>
+                  <div className="relative flex justify-center text-[10px]"><span className="bg-card px-2 text-muted-foreground">or use PAT</span></div>
                 </div>
 
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="pat" className="text-xs text-muted-foreground">Personal Access Token (PAT)</Label>
-                  <Input 
-                    id="pat" 
-                    type="password"
-                    value={pat}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPat(e.target.value)}
-                    placeholder="fig_pat_..." 
-                    className="text-xs"
-                  />
-                </div>
-                
-                <Button type="submit" disabled={isConnecting} className="w-full text-xs active:scale-[0.98] mt-2">
-                  {isConnecting ? 'Connecting...' : 'Connect Token'}
-                </Button>
-              </form>
+                <form onSubmit={handleConnect} className="flex flex-col gap-2">
+                  <Input id="pat" type="password" value={pat} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setPat(e.target.value)} placeholder="fig_pat_..." className="text-xs" />
+                  <Button type="submit" disabled={isConnecting} className="w-full text-xs active:scale-[0.98]" size="sm">{isConnecting ? 'Connecting...' : 'Connect via PAT'}</Button>
+                </form>
+              </div>
             )}
           </CardContent>
           {connection?.connected && (
@@ -182,7 +175,7 @@ export const SettingsPage: React.FC = () => {
                 onClick={() => disconnectFigma()}
                 className="w-full text-xs gap-1.5 active:scale-[0.98]"
               >
-                Disconnect Token
+                Disconnect
               </Button>
             </CardFooter>
           )}

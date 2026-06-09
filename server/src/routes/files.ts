@@ -35,4 +35,25 @@ router.get('/:id/instances', async (req, res, next) => {
   }
 });
 
+router.get('/:id/detached', async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const result = await registeredFileService.getDetachedCandidates(id);
+    return successResponse(res, result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.patch('/:fileId/detached/:candidateId', async (req, res, next) => {
+  try {
+    const { fileId, candidateId } = req.params;
+    const { status } = req.body;
+    const result = await registeredFileService.updateDetachedCandidate(candidateId, status);
+    return successResponse(res, result);
+  } catch (err) {
+    next(err);
+  }
+});
+
 export default router;

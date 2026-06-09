@@ -44,6 +44,7 @@ export interface RegisteredFile {
   lastSuccessfulScanAt: string | null;
   totalInstances: number;
   uniqueComponentsUsed: number;
+  scanIntervalMinutes?: number | null;
 }
 
 export interface ScanBatch {
@@ -70,6 +71,7 @@ export interface ScanJob {
   totalInstances: number;
   uniqueComponentsUsed: number;
   progress: number;
+  scanPhase?: string | null;
   createdAt?: string;
 }
 
@@ -113,6 +115,31 @@ export interface UsageChange {
   currentCount: number;
   changeType: 'newly_used' | 'increased' | 'decreased' | 'removed' | 'no_change';
   detectedAt: string;
+}
+
+export type DetectionType = 'confirmed_detached' | 'suspected_by_name' | 'suspected_by_structure' | 'suspected_by_visual_signature';
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type CandidateStatus = 'open' | 'reviewed' | 'ignored' | 'resolved';
+
+export interface DetachedComponentCandidate {
+  id: string;
+  registeredFileId: string;
+  sourceComponentId: string | null;
+  sourceComponentName: string | null;
+  scanJobId: string;
+  candidateNodeId: string;
+  candidateNodeName: string;
+  pageName: string | null;
+  frameName: string | null;
+  figmaNodeUrl: string | null;
+  detectionType: DetectionType;
+  confidenceScore: number;
+  confidenceLevel: ConfidenceLevel;
+  matchedSignals: string[];
+  reason: string;
+  status: CandidateStatus;
+  firstSeenAt: string;
+  lastSeenAt: string;
 }
 
 // Initial Mock Seed Data

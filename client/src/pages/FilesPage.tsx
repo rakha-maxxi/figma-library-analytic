@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   useRegisteredFiles,
   useAddRegisteredFile,
@@ -10,12 +10,15 @@ import {
   useComponentDetail,
   useScanJobs,
   useFileInstances,
+  useDetachedCandidates,
 } from '../hooks/useTracker';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { Button } from '../components/ui/button';
 import { Badge } from '../components/ui/badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { toast } from 'sonner';
+import { api } from '../lib/api';
 import {
   PlusIcon,
   Trash2Icon,
@@ -74,6 +77,7 @@ export const FilesPage: React.FC = () => {
   const { data: scanJobs } = useScanJobs();
   const { data: componentDetail } = useComponentDetail(selectedCompId);
   const { data: fileInstances } = useFileInstances(selectedFileId);
+  const { data: detachedCandidates } = useDetachedCandidates(selectedFileId);
 
   const activeScanFileIds = useMemo(() => {
     if (!scanJobs) return new Set<string>();
@@ -180,6 +184,35 @@ export const FilesPage: React.FC = () => {
   const isUnscanned = fileDetail?.file.status === 'not_scanned';
   const isFailed = fileDetail?.file.status === 'failed';
 
+  const [countdown, setCountdown] = useState<string | null>(null);
+  useEffect(() => {
+    if (!fileDetail?.file.scanIntervalMinutes) {
+      setCountdown(null);
+      return;
+    }
+    const tick = () => {
+      const last = fileDetail.file.lastScanAttemptAt || fileDetail.file.lastSuccessfulScanAt;
+      if (!last) { setCountdown('Next scan: pending...'); return; }
+      const intervalMs = fileDetail.file.scanIntervalMinutes! * 60 * 1000;
+      const remaining = Math.max(0, new Date(last).getTime() + intervalMs - Date.now());
+      if (remaining <= 0) { setCountdown('Next scan: pending...'); return; }
+      const s = Math.floor(remaining / 1000);
+      const d = Math.floor(s / 86400);
+      const h = Math.floor((s % 86400) / 3600);
+      const min = Math.floor((s % 3600) / 60);
+      const sec = s % 60;
+      const parts: string[] = [];
+      if (d > 0) parts.push(`${d}d`);
+      if (h > 0 || d > 0) parts.push(`${h}h`);
+      if (min > 0 || h > 0 || d > 0) parts.push(`${min}m`);
+      parts.push(`${sec}s`);
+      setCountdown(`Next scan in ${parts.join(' ')}`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [fileDetail?.file.scanIntervalMinutes, fileDetail?.file.lastScanAttemptAt, fileDetail?.file.lastSuccessfulScanAt]);
+
   return (
     <div className="flex gap-0 -mx-8 -my-8 h-[calc(100%+4rem)]">
       {/* Middle Panel — File List */}
@@ -201,8 +234,8 @@ export const FilesPage: React.FC = () => {
             />
           </div>
         </div>
+        <div className="flex-1 min-h-0 overflow-y-auto">
 
-        <div className="flex-1 overflow-y-auto">
           {filteredFiles.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-muted-foreground gap-2">
               <span className="text-xs">{files && files.length > 0 ? 'No matching files' : 'No registered files'}</span>
@@ -288,7 +321,7 @@ export const FilesPage: React.FC = () => {
         ) : !fileDetail ? (
           <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground">File not found.</div>
         ) : (
-          <div className="flex-1 overflow-y-auto p-6">
+          <div className="flex-1 min-h-0 overflow-y-auto p-6">
             {/* File Header */}
             <div className="flex items-start justify-between mb-6">
               <div>
@@ -299,9 +332,33 @@ export const FilesPage: React.FC = () => {
                   {fileDetail.file.trackingEnabled ? null : (
                     <Badge className="bg-muted text-muted-foreground text-[10px]">Paused</Badge>
                   )}
+                  {countdown && (
+                    <Badge className="bg-violet-500/10 text-violet-400 border-violet-500/20 text-[10px] font-mono">{countdown}</Badge>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-2">
+                <Select
+                  value={fileDetail.file.scanIntervalMinutes ? String(fileDetail.file.scanIntervalMinutes) : 'off'}
+                  onValueChange={async (v) => {
+                    const mins = v === 'off' ? null : parseInt(v, 10);
+                    await api.patch(`/api/registered-files/${fileDetail.file.id}`, { scanIntervalMinutes: mins });
+                    toast.success(mins ? `Auto-scan every ${mins}m` : 'Auto-scan disabled');
+                  }}
+                >
+                  <SelectTrigger className="h-8 text-[10px] w-[110px]">
+                    <SelectValue placeholder="Auto-scan" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="off" className="text-[10px]">Off</SelectItem>
+                    <SelectItem value="5" className="text-[10px]">Every 5m</SelectItem>
+                    <SelectItem value="15" className="text-[10px]">Every 15m</SelectItem>
+                    <SelectItem value="30" className="text-[10px]">Every 30m</SelectItem>
+                    <SelectItem value="60" className="text-[10px]">Every 1h</SelectItem>
+                    <SelectItem value="360" className="text-[10px]">Every 6h</SelectItem>
+                    <SelectItem value="1440" className="text-[10px]">Every 24h</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button
                   size="sm"
                   variant="outline"
@@ -330,7 +387,7 @@ export const FilesPage: React.FC = () => {
                   <p className="text-[11px] text-sky-400/80 mt-0.5">
                     {currentScanJob.status === 'pending'
                       ? 'Queued — waiting to start...'
-                      : 'Scanning file — detecting component instances...'}
+                      : (currentScanJob as { scanPhase?: string }).scanPhase || 'Scanning...'}
                   </p>
                   {fileDetail.file.lastSuccessfulScanAt && (
                     <p className="text-[10px] text-sky-400/60 mt-1">
@@ -342,7 +399,7 @@ export const FilesPage: React.FC = () => {
             )}
 
             {/* Quick Stats */}
-            <div className="grid grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-5 gap-3 mb-6">
               <div className="border border-border rounded-lg p-3 bg-muted/10">
                 <p className="text-[10px] text-muted-foreground">Direct Instances</p>
                 <p className="text-lg font-bold font-mono text-foreground tabular-nums">{fileDetail.file.totalInstances}</p>
@@ -350,6 +407,10 @@ export const FilesPage: React.FC = () => {
               <div className="border border-border rounded-lg p-3 bg-muted/10">
                 <p className="text-[10px] text-muted-foreground">Unique Components</p>
                 <p className="text-lg font-bold font-mono text-foreground tabular-nums">{fileDetail.file.uniqueComponentsUsed}</p>
+              </div>
+              <div className="border border-border rounded-lg p-3 bg-muted/10">
+                <p className="text-[10px] text-muted-foreground">Suspected Detached</p>
+                <p className="text-lg font-bold font-mono text-amber-500 tabular-nums">{detachedCandidates?.filter(c => c.status === 'open').length || 0}</p>
               </div>
               <div className="border border-border rounded-lg p-3 bg-muted/10">
                 <p className="text-[10px] text-muted-foreground">Last Scan</p>
@@ -404,6 +465,9 @@ export const FilesPage: React.FC = () => {
                   </TabsTrigger>
                   <TabsTrigger value="instances" className="text-xs font-semibold px-4 py-1.5 rounded whitespace-nowrap">
                     Instances
+                  </TabsTrigger>
+                  <TabsTrigger value="detached" className="text-xs font-semibold px-4 py-1.5 rounded whitespace-nowrap">
+                    Detached
                   </TabsTrigger>
                   <TabsTrigger value="scans" className="text-xs font-semibold px-4 py-1.5 rounded whitespace-nowrap">
                     Scan History
@@ -486,6 +550,72 @@ export const FilesPage: React.FC = () => {
                       <LayersIcon className="size-10 text-muted-foreground/30 mb-1" />
                       <p className="text-xs font-semibold text-foreground/60">No instance data</p>
                       <p className="text-[10px] max-w-xs text-muted-foreground/60">Run a scan to populate instance-level placement data.</p>
+                    </div>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="detached" className="mt-4">
+                  {detachedCandidates && detachedCandidates.length > 0 ? (
+                    <div className="space-y-3">
+                      {detachedCandidates.map(c => {
+                        const confidenceBadge = () => {
+                          switch (c.detectionType) {
+                            case 'confirmed_detached': return <Badge className="text-[9px] bg-rose-500/10 text-rose-400 border-rose-500/20">Confirmed</Badge>;
+                            case 'suspected_by_name': return <Badge className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">Name Match</Badge>;
+                            case 'suspected_by_structure': return <Badge className="text-[9px] bg-violet-500/10 text-violet-400 border-violet-500/20">Structure</Badge>;
+                            case 'suspected_by_visual_signature': return <Badge className="text-[9px] bg-sky-500/10 text-sky-400 border-sky-500/20">Visual</Badge>;
+                            default: return <Badge className="text-[9px]">Unknown</Badge>;
+                          }
+                        };
+                        const levelColor = c.confidenceLevel === 'high' ? 'bg-emerald-500' : c.confidenceLevel === 'medium' ? 'bg-amber-500' : 'bg-muted-foreground/50';
+                        return (
+                          <div key={c.id} className="border border-border/60 rounded-lg p-3 bg-muted/10">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="text-xs font-semibold text-foreground">{c.sourceComponentName || c.candidateNodeName}</p>
+                                  {c.sourceComponentName && c.candidateNodeName !== c.sourceComponentName && (
+                                    <span className="text-[10px] text-muted-foreground font-mono">({c.candidateNodeName})</span>
+                                  )}
+                                  {confidenceBadge()}
+                                  {c.status === 'reviewed' && <Badge className="text-[9px] bg-emerald-500/10 text-emerald-500 border-emerald-500/20">Reviewed</Badge>}
+                                  {c.status === 'ignored' && <Badge className="text-[9px] bg-muted text-muted-foreground">Ignored</Badge>}
+                                </div>
+                                <div className="flex items-center gap-3 mt-1 text-[10px] text-muted-foreground">
+                                  <span>Confidence: <span className="font-mono font-bold">{Math.round(c.confidenceScore * 100)}%</span></span>
+                                  <span className="flex items-center gap-1"><span className={`size-1.5 rounded-full ${levelColor}`} />{c.confidenceLevel}</span>
+                                </div>
+                                <p className="text-[10px] text-muted-foreground mt-1">{c.reason}</p>
+                                {c.pageName && <p className="text-[10px] text-muted-foreground/60 mt-0.5">Page: {c.pageName}{c.frameName ? ` · Frame: ${c.frameName}` : ''}</p>}
+                                {c.matchedSignals.length > 0 && (
+                                  <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                                    {c.matchedSignals.map(s => (
+                                      <Badge key={s} className="text-[8px] bg-muted text-muted-foreground border-border/30 px-1.5 py-0">{s}</Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {c.figmaNodeUrl && (
+                                  <a href={c.figmaNodeUrl} target="_blank" rel="noreferrer" className="text-sky-500 hover:text-sky-400 text-[10px] font-semibold flex items-center gap-0.5 px-2 py-1 rounded hover:bg-sky-500/5 active:scale-[0.95]">
+                                    Open <ExternalLinkIcon className="size-3" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 mt-2 pt-2 border-t border-border/30">
+                              <button className="text-[10px] text-emerald-400 hover:text-emerald-300 px-2 py-0.5 rounded hover:bg-emerald-500/5 active:scale-[0.95]" onClick={() => toast.success('Marked as reviewed')}>Review</button>
+                              <button className="text-[10px] text-muted-foreground hover:text-foreground px-2 py-0.5 rounded hover:bg-muted active:scale-[0.95]" onClick={() => toast.success('Marked as ignored')}>Ignore</button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-16 min-h-[300px] text-center text-muted-foreground gap-1.5 border border-border/40 rounded-lg bg-muted/5">
+                      <CheckCircle2Icon className="size-10 text-emerald-500/30 mb-1" />
+                      <p className="text-xs font-semibold text-foreground/60">No detached components detected</p>
+                      <p className="text-[10px] max-w-xs text-muted-foreground/60">Suspected detached usage will appear here after scanning.</p>
                     </div>
                   )}
                 </TabsContent>
@@ -577,7 +707,7 @@ export const FilesPage: React.FC = () => {
 
       {/* Component Detail Sheet */}
       <Sheet open={showComponentSheet} onOpenChange={setShowComponentSheet}>
-        <SheetContent className="w-[500px] sm:max-w-[500px]">
+        <SheetContent className="w-[500px] sm:max-w-[500px] overflow-y-auto">
           {componentDetail && (() => {
             const parsed = parseFigmaComponentName(componentDetail.component.componentName, componentDetail.component.componentSetName);
             return (
@@ -683,6 +813,11 @@ export const FilesPage: React.FC = () => {
                     <div><span className="text-[10px] text-muted-foreground">Source File</span><p className="font-mono">{componentDetail.component.sourceFileId}</p></div>
                   </TabsContent>
                 </Tabs>
+
+                <div className="mt-4 pt-3 border-t border-border/40">
+                  <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-2">Suspected Detached Usage</p>
+                  <p className="text-[10px] text-muted-foreground/60">Detached detection runs during file scanning. Check the Detached tab in file detail for candidates.</p>
+                </div>
               </>
             );
           })()}

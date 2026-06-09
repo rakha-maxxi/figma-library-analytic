@@ -231,7 +231,7 @@ export const ComponentsPage: React.FC = () => {
 
       {/* Component Detail Sheet Drawer */}
       <Sheet open={!!selectedCompId} onOpenChange={(open: boolean) => { if (!open) setSelectedCompId(null); }}>
-        <SheetContent className="w-[500px] sm:max-w-[500px] border-l border-border bg-card flex flex-col gap-6 overflow-y-auto">
+        <SheetContent className="w-[500px] sm:max-w-[500px] border-l border-border bg-card flex flex-col gap-6 overflow-hidden">
           {detail && (() => {
             const drawerParsed = parseFigmaComponentName(detail.component.componentName, detail.component.componentSetName);
             return (
@@ -303,7 +303,7 @@ export const ComponentsPage: React.FC = () => {
                   </TabsList>
 
                   {/* Files Tab */}
-                  <TabsContent value="files" className="mt-4 flex-1 overflow-y-auto">
+                  <TabsContent value="files" className="mt-4 flex-1 min-h-0 overflow-y-auto">
                     <div className="flex flex-col gap-2">
                       {detail.files.length > 0 ? (
                         detail.files.map(({ file, count, lastSeen }) => (
@@ -339,7 +339,7 @@ export const ComponentsPage: React.FC = () => {
                   </TabsContent>
 
                   {/* Nodes Instances Tab */}
-                  <TabsContent value="instances" className="mt-4 flex-1 overflow-y-auto">
+                  <TabsContent value="instances" className="mt-4 flex-1 min-h-0 overflow-y-auto">
                     <div className="flex flex-col gap-2">
                       {detail.instances.length > 0 ? (
                         detail.instances.map((inst) => (

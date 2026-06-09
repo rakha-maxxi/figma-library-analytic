@@ -64,7 +64,7 @@ export const CustomizeSheet: React.FC<Props> = ({ open, onClose, layout, onLayou
           <SheetDescription className="text-xs">Add, remove, reorder, and resize widgets.</SheetDescription>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 mt-4">
+        <div className="flex-1 min-h-0 overflow-y-auto space-y-4 mt-4">
           {sorted.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-2">Active Widgets</p>

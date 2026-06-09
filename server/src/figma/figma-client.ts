@@ -8,6 +8,11 @@ export interface FigmaNode {
   children?: FigmaNode[];
   componentId?: string;
   componentProperties?: Record<string, unknown>;
+  layoutMode?: string;
+  fills?: unknown[];
+  strokes?: unknown[];
+  cornerRadius?: number;
+  [key: string]: unknown;
 }
 
 export interface FigmaComponentMeta {
@@ -42,19 +47,21 @@ export interface FigmaUserResponse {
 export class FigmaClient {
   private token: string;
   private baseUrl: string;
+  private authType: 'pat' | 'oauth';
 
-  constructor(token: string) {
+  constructor(token: string, authType: 'pat' | 'oauth' = 'pat') {
     this.token = token;
     this.baseUrl = config.figmaApiBaseUrl;
+    this.authType = authType;
   }
 
   private async request<T>(path: string): Promise<T> {
     const url = `${this.baseUrl}${path}`;
-    const response = await fetch(url, {
-      headers: {
-        'X-Figma-Token': this.token,
-      },
-    });
+    const headers: Record<string, string> = this.authType === 'pat'
+      ? { 'X-Figma-Token': this.token }
+      : { 'Authorization': `Bearer ${this.token}` };
+
+    const response = await fetch(url, { headers });
 
     if (response.status === 429) {
       const retryAfter = response.headers.get('Retry-After');
@@ -71,7 +78,7 @@ export class FigmaClient {
       const detail = (body.err as string) || (body.message as string) || '';
       throw new AppError(
         ErrorCodes.FIGMA_ACCESS_DENIED,
-        `Cannot access this Figma file. Make sure your Personal Access Token has access to this file. ${detail ? `Figma says: ${detail}` : 'The file may be private or your token may lack the required scope (file_content:read).'}`,
+        `Cannot access this Figma file. Make sure your Figma account has access to this file. ${detail ? `Figma says: ${detail}` : 'The file may be private, or your connection may not have the required scope (file_content:read).'}`,
         403,
       );
     }

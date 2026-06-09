@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: tracker
+      POSTGRES_PASSWORD: tracker_dev_2026
+      POSTGRES_DB: figma_tracker
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tracker -d figma_tracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  server:
+    build: ./server
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      NODE_ENV: development
+      DATABASE_URL: postgresql://tracker:tracker_dev_2026@postgres:5432/figma_tracker?schema=public
+      DIRECT_URL: postgresql://tracker:tracker_dev_2026@postgres:5432/figma_tracker?schema=public
+      FIGMA_API_BASE_URL: https://api.figma.com
+      ENCRYPTION_SECRET: docker-local-dev-secret-change-in-production
+      APP_BASE_URL: http://localhost:5173
+      API_BASE_URL: http://localhost:4000
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./server/src:/app/src
+      - ./server/prisma:/app/prisma
+
+  client:
+    build: ./client
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000
+    depends_on:
+      - server
+    volumes:
+      - ./client/src:/app/src
+      - ./client/public:/app/public
+
+volumes:
+  pgdata:

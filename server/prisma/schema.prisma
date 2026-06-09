@@ -9,16 +9,21 @@ datasource db {
 }
 
 model FigmaConnection {
-  id                   String    @id @default(uuid())
-  name                 String    @default("Default Figma Connection")
-  encryptedAccessToken String    @map("encrypted_access_token")
-  tokenType            String    @default("personal_access_token") @map("token_type")
-  status               String    @default("connected")
-  connectedUserName    String?   @map("connected_user_name")
-  connectedUserEmail   String?   @map("connected_user_email")
-  lastValidatedAt      DateTime? @map("last_validated_at")
-  createdAt            DateTime  @default(now()) @map("created_at")
-  updatedAt            DateTime  @updatedAt @map("updated_at")
+  id                    String    @id @default(uuid())
+  name                  String    @default("Default Figma Connection")
+  authType              String    @default("pat") @map("auth_type")
+  encryptedAccessToken  String    @map("encrypted_access_token")
+  encryptedRefreshToken String?   @map("encrypted_refresh_token")
+  tokenType             String    @default("personal_access_token") @map("token_type")
+  status                String    @default("connected")
+  scope                 String?   @map("scope")
+  expiresAt             DateTime? @map("expires_at")
+  figmaUserId           String?   @map("figma_user_id")
+  connectedUserName     String?   @map("connected_user_name")
+  connectedUserEmail    String?   @map("connected_user_email")
+  lastValidatedAt       DateTime? @map("last_validated_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
 
   @@map("figma_connections")
 }
@@ -76,6 +81,7 @@ model RegisteredFile {
   lastSuccessfulScanAt   DateTime? @map("last_successful_scan_at")
   totalInstances         Int       @default(0) @map("total_instances")
   uniqueComponentsUsed   Int       @default(0) @map("unique_components_used")
+  scanIntervalMinutes    Int?      @map("scan_interval_minutes")
   createdAt              DateTime  @default(now()) @map("created_at")
   updatedAt              DateTime  @updatedAt @map("updated_at")
 
@@ -84,6 +90,7 @@ model RegisteredFile {
   usageSnapshots UsageSnapshot[]
   usageInstances UsageInstance[]
   usageChanges   UsageChange[]
+  detachedCandidates DetachedComponentCandidate[]
 
   @@map("registered_files")
 }
@@ -124,6 +131,7 @@ model ScanJob {
   registeredFile RegisteredFile      @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
   usageSnapshots UsageSnapshot[]
   usageChanges   UsageChange[]
+  detachedCandidates DetachedComponentCandidate[]
 
   @@map("scan_jobs")
 }
@@ -252,4 +260,34 @@ model DashboardPreference {
   updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@map("dashboard_preferences")
+}
+
+model DetachedComponentCandidate {
+  id                String   @id @default(uuid())
+  registeredFileId  String   @map("registered_file_id")
+  sourceComponentId String?  @map("source_component_id")
+  scanJobId         String   @map("scan_job_id")
+  candidateNodeId   String   @map("candidate_node_id")
+  candidateNodeName String   @map("candidate_node_name")
+  pageName          String?  @map("page_name")
+  frameName         String?  @map("frame_name")
+  figmaNodeUrl      String?  @map("figma_node_url")
+  detectionType     String   @map("detection_type")
+  confidenceScore   Float    @map("confidence_score")
+  confidenceLevel   String   @map("confidence_level")
+  matchedSignalsJson String? @map("matched_signals_json")
+  reason            String
+  status            String   @default("open")
+  firstSeenAt       DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt        DateTime @default(now()) @map("last_seen_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  registeredFile RegisteredFile @relation(fields: [registeredFileId], references: [id], onDelete: Cascade)
+  scanJob        ScanJob        @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+
+  @@unique([registeredFileId, candidateNodeId, detectionType])
+  @@index([registeredFileId])
+  @@index([sourceComponentId])
+  @@map("detached_component_candidates")
 }
