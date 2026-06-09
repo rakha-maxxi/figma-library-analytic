@@ -36,6 +36,11 @@ async function runAutoScans() {
       try {
         const { startScanFile } = await import('./scan.js');
         await startScanFile(file.id);
+        // Update lastScanAttemptAt so countdown reflects the queued scan
+        await prisma.registeredFile.update({
+          where: { id: file.id },
+          data: { lastScanAttemptAt: new Date() },
+        });
         console.log(`[auto-scan] Queued scan for "${file.name}"`);
       } catch (err) {
         console.error(`[auto-scan] Failed to queue "${file.name}":`, (err as Error).message);

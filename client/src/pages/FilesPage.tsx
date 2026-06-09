@@ -191,6 +191,10 @@ export const FilesPage: React.FC = () => {
       return;
     }
     const tick = () => {
+      if (activeScanFileIds.has(fileDetail!.file.id)) {
+        setCountdown('Scanning...');
+        return;
+      }
       const last = fileDetail.file.lastScanAttemptAt || fileDetail.file.lastSuccessfulScanAt;
       if (!last) { setCountdown('Next scan: pending...'); return; }
       const intervalMs = fileDetail.file.scanIntervalMinutes! * 60 * 1000;

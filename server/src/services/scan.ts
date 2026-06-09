@@ -19,12 +19,12 @@ export async function stopScanBatch(batchId: string) {
   cancelledBatchIds.add(batchId);
 
   await prisma.scanJob.updateMany({
-    where: { batchId, status: 'pending' },
+    where: { batchId, status: { in: ['pending', 'running'] } },
     data: { status: 'cancelled', finishedAt: new Date() },
   });
 
   const batch = await prisma.scanBatch.findUnique({ where: { id: batchId } });
-  if (batch && batch.status === 'running') {
+  if (batch && (batch.status === 'running' || batch.status === 'pending')) {
     await prisma.scanBatch.update({
       where: { id: batchId },
       data: { status: 'cancelled', finishedAt: new Date() },
@@ -196,7 +196,7 @@ async function processScanBatch(batchId: string) {
 
       const job = jobs[i];
       try {
-        await processSingleScanJob(job.id, job.registeredFile);
+        await processSingleScanJob(job.id, job.registeredFile, batchId);
         await prisma.scanBatch.update({
           where: { id: batchId },
           data: { completedFiles: { increment: 1 } },
@@ -430,6 +430,7 @@ async function saveDetachedCandidates(scanJobId: string, fileId: string, candida
 async function processSingleScanJob(
   scanJobId: string,
   registeredFile: { id: string; figmaFileKey: string; name: string },
+  batchId?: string,
 ) {
   const startTime = Date.now();
 
@@ -458,11 +459,13 @@ async function processSingleScanJob(
   const sourceComponentMap = buildSourceComponentMap(sourceComponents);
 
   await updateScanPhase(scanJobId, 'Fetching Figma file...');
+  if (batchId && cancelledBatchIds.has(batchId)) return;
 
   const figma = await getFigmaClient();
   const figmaFile = await figma.getFile(registeredFile.figmaFileKey);
 
   await updateScanPhase(scanJobId, 'Detecting component instances...');
+  if (batchId && cancelledBatchIds.has(batchId)) return;
 
   const detectedInstances = detectSourceInstances({
     figmaFile,
