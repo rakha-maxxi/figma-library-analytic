@@ -8,7 +8,7 @@ export async function getRegisteredFiles(filters?: { search?: string; status?: s
   const where: Record<string, unknown> = {};
 
   if (filters?.search) {
-    where.name = { contains: filters.search, mode: 'insensitive' };
+    where.name = { contains: filters.search };
   }
   if (filters?.status && filters.status !== 'all') {
     where.status = filters.status;

@@ -20,8 +20,8 @@ export async function getComponents(filters?: ComponentFilters) {
   }
   if (filters?.search) {
     where.OR = [
-      { componentName: { contains: filters.search, mode: 'insensitive' } },
-      { componentSetName: { contains: filters.search, mode: 'insensitive' } },
+      { componentName: { contains: filters.search } },
+      { componentSetName: { contains: filters.search } },
     ];
   }
 

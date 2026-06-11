@@ -40,3 +40,4 @@ ehthumbs.db
 *.njsproj
 *.sln
 *.sw?
+server/dev.db

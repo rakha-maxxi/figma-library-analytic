@@ -67,8 +67,8 @@ export async function getActivityLogs(filters: ActivityLogFilters = {}) {
   }
   if (filters.search) {
     where.OR = [
-      { title: { contains: filters.search, mode: 'insensitive' } },
-      { description: { contains: filters.search, mode: 'insensitive' } },
+      { title: { contains: filters.search } },
+      { description: { contains: filters.search } },
     ];
   }
 
