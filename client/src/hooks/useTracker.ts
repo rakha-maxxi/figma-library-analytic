@@ -84,7 +84,7 @@ export const useComponents = (filters?: { search?: string; status?: string; set?
 
 export const useComponentDetail = (componentId: string | null) => {
   return useQuery<{
-    component: SourceComponent & { usageStatus?: string };
+    component: SourceComponent & { usageStatus?: string; totalInstances: number; filesUsed: number };
     files: Array<{ file: RegisteredFile; count: number; lastSeen: string }>;
     instances: UsageInstance[];
     trend: Array<{ date: string; count: number }>;
@@ -144,6 +144,8 @@ export const useComponentDetail = (componentId: string | null) => {
           description: data.component.description,
           status: (data.component.status as 'active' | 'deprecated') || 'active',
           usageStatus: data.component.usageStatus,
+          totalInstances: data.component.totalInstances,
+          filesUsed: data.component.filesUsed,
         },
         files: data.files.map(f => ({
           file: {

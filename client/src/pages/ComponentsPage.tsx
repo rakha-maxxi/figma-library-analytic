@@ -14,6 +14,7 @@ import {
   TableRow 
 } from '../components/ui/table';
 import { Badge } from '../components/ui/badge';
+import { Button } from '../components/ui/button';
 import { 
   Sheet, 
   SheetContent, 
@@ -30,23 +31,30 @@ import {
   FileSpreadsheetIcon,
   LineChartIcon,
   CalendarIcon,
-  EyeIcon
+  EyeIcon,
+  RefreshCwIcon
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { parseFigmaComponentName } from '../lib/utils';
 
-const getStatusBadge = (status: string) => {
-  switch (status) {
-    case 'Used':
+const getCategoryBadge = (category: string) => {
+  switch (category) {
+    case 'High Impact':
       return (
-        <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
-          Used
+        <Badge variant="outline" className="text-[10px] font-semibold bg-violet-500/10 text-violet-400 border-violet-500/20">
+          High Impact
         </Badge>
       );
-    case 'Low Usage':
+    case 'Healthy':
       return (
-        <Badge variant="outline" className="text-[10px] font-semibold bg-sky-500/10 text-sky-400 border-sky-500/20">
-          Low Usage
+        <Badge variant="outline" className="text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border-emerald-500/20">
+          Healthy
+        </Badge>
+      );
+    case 'Low Adoption':
+      return (
+        <Badge variant="outline" className="text-[10px] font-semibold bg-amber-500/10 text-amber-400 border-amber-500/20">
+          Low Adoption
         </Badge>
       );
     case 'Unused':
@@ -55,22 +63,16 @@ const getStatusBadge = (status: string) => {
           Unused
         </Badge>
       );
-    case 'Not Scanned':
-      return (
-        <Badge variant="outline" className="text-[10px] font-semibold bg-amber-500/10 text-amber-500/90 border-amber-500/20">
-          Not Scanned
-        </Badge>
-      );
-    case 'Deprecated Candidate':
+    case 'Deprecated':
       return (
         <Badge variant="outline" className="text-[10px] font-semibold bg-rose-500/10 text-rose-400 border-rose-500/20">
-          Deprecated Candidate
+          Deprecated
         </Badge>
       );
     default:
       return (
         <Badge variant="outline" className="text-[10px] font-semibold">
-          {status}
+          {category}
         </Badge>
       );
   }
@@ -82,21 +84,41 @@ export const ComponentsPage: React.FC = () => {
   const [setFilter, setSetFilter] = useState('all');
   const [selectedCompId, setSelectedCompId] = useState<string | null>(null);
 
-  // Fetch components based on filters
-  const { data: components, isLoading } = useComponents({ search, status, set: setFilter });
+  // Fetch components based on filters (excluding status which we filter client-side)
+  const { data: components, isLoading } = useComponents({ search, status: 'all', set: setFilter });
   const { data: detail } = useComponentDetail(selectedCompId);
 
   const allUsage = useMemo(() => {
     const comps = components || [];
-    return comps.map(c => ({
-      ...c,
-      totalInstances: c.totalInstances || 0,
-      filesUsed: c.filesUsed || 0,
-    }));
-  }, [components]);
+    
+    // Categorize client-side
+    const categorized = comps.map(c => {
+      let category = 'Unused';
+      if (c.status === 'deprecated') {
+        category = 'Deprecated';
+      } else if (c.totalInstances > 25 || c.filesUsed >= 3) {
+        category = 'High Impact';
+      } else if (c.totalInstances > 5) {
+        category = 'Healthy';
+      } else if (c.totalInstances > 0) {
+        category = 'Low Adoption';
+      } else {
+        category = 'Unused';
+      }
+      return {
+        ...c,
+        totalInstances: c.totalInstances || 0,
+        filesUsed: c.filesUsed || 0,
+        usageCategory: category,
+      };
+    });
+
+    // Apply category filter
+    if (status === 'all') return categorized;
+    return categorized.filter(c => c.usageCategory === status);
+  }, [components, status]);
 
   const componentSets = useMemo(() => {
-    // To populate the list of component sets, fetch all without setFilter or status filters to list options
     const comps = components || [];
     const sets = new Set<string>();
     comps.forEach(c => {
@@ -106,7 +128,7 @@ export const ComponentsPage: React.FC = () => {
   }, [components]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-300">
       {/* Header title */}
       <div>
         <h2 className="text-xl font-bold tracking-tight text-foreground m-0">Source Components</h2>
@@ -114,7 +136,7 @@ export const ComponentsPage: React.FC = () => {
       </div>
 
       {/* Filter and search bar */}
-      <div className="flex flex-col md:flex-row gap-3 items-center justify-between border border-border bg-card p-4 rounded-lg">
+      <div className="flex flex-col md:flex-row gap-3 items-center justify-between border border-border bg-card p-4 rounded-xl shadow-sm">
         <div className="relative w-full md:w-80">
           <SearchIcon className="size-4 text-muted-foreground absolute left-3 top-2.5" />
           <Input 
@@ -128,22 +150,8 @@ export const ComponentsPage: React.FC = () => {
         <div className="flex w-full md:w-auto items-center gap-3">
           <SlidersHorizontalIcon className="size-4 text-muted-foreground shrink-0 hidden md:block" />
           
-          <Select value={status} onValueChange={(val) => setStatus(val || 'all')}>
-            <SelectTrigger className="w-full md:w-44 text-xs h-9 bg-background">
-              <SelectValue placeholder="Usage Status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all" className="text-xs">All Statuses</SelectItem>
-              <SelectItem value="Used" className="text-xs">Used</SelectItem>
-              <SelectItem value="Low Usage" className="text-xs">Low Usage</SelectItem>
-              <SelectItem value="Unused" className="text-xs">Unused</SelectItem>
-              <SelectItem value="Not Scanned" className="text-xs">Not Scanned</SelectItem>
-              <SelectItem value="Deprecated Candidate" className="text-xs">Deprecated Candidate</SelectItem>
-            </SelectContent>
-          </Select>
-
           <Select value={setFilter} onValueChange={(val) => setSetFilter(val || 'all')}>
-            <SelectTrigger className="w-full md:w-44 text-xs h-9 bg-background">
+            <SelectTrigger className="w-full md:w-56 text-xs h-9 bg-background">
               <SelectValue placeholder="Component Set" />
             </SelectTrigger>
             <SelectContent>
@@ -156,11 +164,35 @@ export const ComponentsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Tab-based audit filters */}
+      <Tabs value={status} onValueChange={setStatus} className="w-full">
+        <TabsList className="bg-muted/40 p-1 border border-border/60 rounded-xl flex w-full md:w-auto overflow-x-auto h-auto gap-0.5 select-none">
+          <TabsTrigger value="all" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            All Components
+          </TabsTrigger>
+          <TabsTrigger value="High Impact" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            High Impact
+          </TabsTrigger>
+          <TabsTrigger value="Healthy" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            Healthy
+          </TabsTrigger>
+          <TabsTrigger value="Low Adoption" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            Low Adoption
+          </TabsTrigger>
+          <TabsTrigger value="Unused" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            Unused
+          </TabsTrigger>
+          <TabsTrigger value="Deprecated" className="text-xs font-semibold px-4 py-2 rounded-lg data-[state=active]:bg-background active:scale-[0.97] transition-all whitespace-nowrap">
+            Deprecated
+          </TabsTrigger>
+        </TabsList>
+      </Tabs>
+
       {/* Main Table */}
-      <div className="border border-border bg-card rounded-lg overflow-hidden">
+      <div className="border border-border bg-card rounded-xl overflow-hidden shadow-sm">
         {isLoading ? (
-          <div className="flex items-center justify-center py-20 text-xs text-muted-foreground">
-            Loading components inventory...
+          <div className="flex items-center justify-center py-20 text-xs text-muted-foreground select-none">
+            <RefreshCwIcon className="size-4 animate-spin mr-2" /> Loading components inventory...
           </div>
         ) : allUsage.length > 0 ? (
           <Table>
@@ -170,7 +202,7 @@ export const ComponentsPage: React.FC = () => {
                 <TableHead className="text-xs">Component Set / Group</TableHead>
                 <TableHead className="text-xs text-right">Total Instances</TableHead>
                 <TableHead className="text-xs text-right">Consumer Files</TableHead>
-                <TableHead className="text-xs">Usage Status</TableHead>
+                <TableHead className="text-xs">Usage Category</TableHead>
                 <TableHead className="text-xs">Figma Node</TableHead>
                 <TableHead className="text-xs text-right"></TableHead>
               </TableRow>
@@ -182,7 +214,7 @@ export const ComponentsPage: React.FC = () => {
                   <TableRow 
                     key={comp.id} 
                     onClick={() => setSelectedCompId(comp.id)}
-                    className="cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors"
+                    className="cursor-pointer hover:bg-muted/30 transition-colors"
                   >
                     <TableCell className="text-xs font-semibold text-foreground max-w-[220px]" title={comp.componentName}>
                       <span className="truncate block">
@@ -204,7 +236,7 @@ export const ComponentsPage: React.FC = () => {
                     <TableCell className="text-xs text-right font-mono tabular-nums">{comp.filesUsed}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex flex-col gap-1 items-start">
-                        {getStatusBadge(comp.usageStatus)}
+                        {getCategoryBadge(comp.usageCategory)}
                         {comp.status === 'deprecated' && (
                           <span className="text-[9px] text-rose-400 font-medium">Deprecated in Kit</span>
                         )}
@@ -212,9 +244,9 @@ export const ComponentsPage: React.FC = () => {
                     </TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{comp.componentNodeId}</TableCell>
                     <TableCell className="text-xs text-right">
-                      <button className="text-muted-foreground hover:text-foreground inline-flex items-center justify-center size-8 rounded hover:bg-muted transition-colors active:scale-[0.95]">
-                        <EyeIcon className="size-4" />
-                      </button>
+                      <Button variant="ghost" size="icon" className="size-8 text-muted-foreground hover:text-foreground active:scale-[0.95]">
+                        <EyeIcon data-icon />
+                      </Button>
                     </TableCell>
                   </TableRow>
                 );
@@ -234,6 +266,16 @@ export const ComponentsPage: React.FC = () => {
         <SheetContent className="w-[500px] sm:max-w-[500px] border-l border-border bg-card flex flex-col gap-6 overflow-hidden">
           {detail && (() => {
             const drawerParsed = parseFigmaComponentName(detail.component.componentName, detail.component.componentSetName);
+            const category = detail.component.status === 'deprecated' 
+              ? 'Deprecated'
+              : detail.component.totalInstances > 25 || detail.component.filesUsed >= 3
+                ? 'High Impact'
+                : detail.component.totalInstances > 5
+                  ? 'Healthy'
+                  : detail.component.totalInstances > 0
+                    ? 'Low Adoption'
+                    : 'Unused';
+
             return (
               <>
                 <SheetHeader>
@@ -242,7 +284,7 @@ export const ComponentsPage: React.FC = () => {
                       {detail.component.componentSetName || 'Independent Component'}
                     </span>
                     <div className="flex items-center gap-1.5">
-                      {getStatusBadge(detail.component.usageStatus || '')}
+                      {getCategoryBadge(category)}
                       {detail.component.status === 'deprecated' && (
                         <Badge variant="destructive" className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/20">
                           Deprecated
@@ -250,7 +292,7 @@ export const ComponentsPage: React.FC = () => {
                       )}
                     </div>
                   </div>
-                  <SheetTitle className="text-lg font-bold text-foreground mt-2" title={detail.component.componentName}>
+                  <SheetTitle className="text-base font-bold text-foreground mt-2" title={detail.component.componentName}>
                     {drawerParsed.baseName}
                   </SheetTitle>
                   

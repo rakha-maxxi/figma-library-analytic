@@ -241,10 +241,20 @@ export const FilesPage: React.FC = () => {
         <div className="flex-1 min-h-0 overflow-y-auto">
 
           {filteredFiles.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 px-4 text-center text-muted-foreground gap-2">
-              <span className="text-xs">{files && files.length > 0 ? 'No matching files' : 'No registered files'}</span>
-              <Button size="sm" variant="outline" className="text-xs h-7" onClick={() => setShowRegisterSheet(true)}>
-                <PlusIcon className="size-3" /> Register First File
+            <div className="flex flex-col items-center justify-center py-16 px-4 text-center text-muted-foreground gap-3 border border-dashed border-border/60 rounded-xl m-4 bg-muted/5 animate-in fade-in duration-300">
+              <FileSpreadsheetIcon className="size-8 opacity-30 text-muted-foreground" />
+              <div>
+                <p className="text-xs font-semibold text-foreground/70">
+                  {files && files.length > 0 ? 'No matching files' : 'No registered files'}
+                </p>
+                {!(files && files.length > 0) && (
+                  <p className="text-[10px] text-muted-foreground/80 mt-1 leading-normal max-w-[180px] mx-auto">
+                    Add Figma design files where components from your library are used.
+                  </p>
+                )}
+              </div>
+              <Button size="sm" variant="outline" className="text-[10px] h-7 gap-1 active:scale-[0.96]" onClick={() => setShowRegisterSheet(true)}>
+                <PlusIcon className="size-3" /> Register File
               </Button>
             </div>
           ) : (
@@ -306,17 +316,19 @@ export const FilesPage: React.FC = () => {
       {/* Right Panel — File Detail */}
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         {!selectedFileId ? (
-          <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            <div className="flex flex-col items-center gap-3 max-w-xs text-center">
-              <div className="bg-muted p-4 rounded-full">
-                <FileSpreadsheetIcon className="size-8 text-muted-foreground/40" />
+          <div className="flex-1 flex items-center justify-center text-muted-foreground animate-in fade-in duration-300">
+            <div className="flex flex-col items-center gap-4 max-w-xs text-center">
+              <div className="bg-primary/5 border border-primary/10 p-5 rounded-2xl">
+                <FileSpreadsheetIcon className="size-10 text-primary/40" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-foreground/60">Select a file</p>
-                <p className="text-xs text-muted-foreground mt-1">Choose a registered file from the list to view its scan results and component usage.</p>
+                <p className="text-sm font-bold text-foreground">Select a file</p>
+                <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                  Choose a registered file from the sidebar to inspect its components usage, instance locations, and detached candidate elements.
+                </p>
               </div>
-              <Button size="sm" variant="outline" className="text-xs" onClick={() => setShowRegisterSheet(true)}>
-                <PlusIcon className="size-3.5" /> Register a file
+              <Button size="sm" variant="outline" className="text-xs gap-1 active:scale-[0.97]" onClick={() => setShowRegisterSheet(true)}>
+                <PlusIcon className="size-3.5" /> Register new file
               </Button>
             </div>
           </div>
@@ -344,8 +356,8 @@ export const FilesPage: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Select
                   value={fileDetail.file.scanIntervalMinutes ? String(fileDetail.file.scanIntervalMinutes) : 'off'}
-                  onValueChange={async (v) => {
-                    const mins = v === 'off' ? null : parseInt(v, 10);
+                  onValueChange={async (v: string | null) => {
+                    const mins = (!v || v === 'off') ? null : parseInt(v, 10);
                     await api.patch(`/api/registered-files/${fileDetail.file.id}`, { scanIntervalMinutes: mins });
                     toast.success(mins ? `Auto-scan every ${mins}m` : 'Auto-scan disabled');
                   }}
@@ -382,20 +394,26 @@ export const FilesPage: React.FC = () => {
 
             {/* Scan in progress banner */}
             {currentScanJob && (
-              <div className="border border-sky-500/20 bg-sky-500/5 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <div className="border border-sky-500/20 bg-sky-500/5 rounded-xl p-4 mb-6 flex items-start gap-3 animate-in fade-in duration-200">
                 <div className="relative flex size-5 items-center justify-center shrink-0 mt-0.5">
                   <RefreshCwIcon className="size-4 text-sky-400 animate-spin" />
                 </div>
-                <div>
+                <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-sky-400">Scan in progress</p>
-                  <p className="text-[11px] text-sky-400/80 mt-0.5">
-                    {currentScanJob.status === 'pending'
-                      ? 'Queued — waiting to start...'
-                      : (currentScanJob as { scanPhase?: string }).scanPhase || 'Scanning...'}
-                  </p>
+                  <div className="mt-1 flex flex-col gap-1">
+                    <p className="text-[11px] text-foreground font-medium flex items-center gap-1.5">
+                      <span className="inline-block size-1.5 rounded-full bg-sky-400 animate-pulse" />
+                      {currentScanJob.status === 'pending'
+                        ? 'Queued in scanner queue — waiting to start...'
+                        : (currentScanJob as { scanPhase?: string }).scanPhase || 'Analyzing Figma node tree...'}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground">
+                      Running on Figma API. This will automatically update when complete.
+                    </p>
+                  </div>
                   {fileDetail.file.lastSuccessfulScanAt && (
-                    <p className="text-[10px] text-sky-400/60 mt-1">
-                      Previous scan data shown below. Results will update when complete.
+                    <p className="text-[9px] text-muted-foreground/60 mt-2 border-t border-sky-500/10 pt-2">
+                      Previous scan snapshot from {new Date(fileDetail.file.lastSuccessfulScanAt).toLocaleString()} is shown below.
                     </p>
                   )}
                 </div>
@@ -434,12 +452,34 @@ export const FilesPage: React.FC = () => {
 
             {/* Failure message */}
             {isFailed && lastJob?.errorMessage && (
-              <div className="border border-rose-500/20 bg-rose-500/5 rounded-lg p-4 mb-6 flex items-start gap-3">
+              <div className="border border-rose-500/20 bg-rose-500/5 rounded-xl p-4 mb-6 flex items-start gap-3 animate-in fade-in duration-200">
                 <AlertTriangleIcon className="size-4 text-rose-500 mt-0.5 shrink-0" />
-                <div>
-                  <p className="text-xs font-semibold text-rose-400">Last scan failed</p>
-                  <p className="text-[11px] text-rose-400/80 mt-0.5">{lastJob.errorMessage}</p>
-                  {lastJob.errorCode && <p className="text-[10px] text-rose-400/60 font-mono mt-0.5">Code: {lastJob.errorCode}</p>}
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-rose-400">Last scan failed (Error: {lastJob.errorCode || 'UNKNOWN_ERROR'})</p>
+                  <p className="text-[11px] text-rose-400/90 font-mono mt-1 bg-rose-950/20 p-2 rounded border border-rose-500/10 leading-normal">
+                    {lastJob.errorMessage}
+                  </p>
+                  <div className="border-t border-rose-500/15 pt-2.5 mt-2.5">
+                    <p className="text-[10px] font-semibold text-foreground/80 mb-1">Troubleshooting Suggestion:</p>
+                    <ul className="list-disc pl-4 space-y-1 text-[9px] text-muted-foreground font-sans">
+                      {lastJob.errorCode === 'FIGMA_429' || lastJob.errorMessage.toLowerCase().includes('rate limit') ? (
+                        <>
+                          <li>Figma API rate limit hit. The scanner will back off and retry.</li>
+                          <li>Wait 60 seconds before triggering manual scans on this file.</li>
+                        </>
+                      ) : lastJob.errorCode === 'FIGMA_403' || lastJob.errorMessage.toLowerCase().includes('forbidden') ? (
+                        <>
+                          <li>Verify that your Figma Personal Access Token has access to this file.</li>
+                          <li>Ensure the token has the <span className="font-semibold text-foreground">File Content</span> read scope.</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Ensure the file URL or key is valid and not deleted.</li>
+                          <li>Check your Personal Access Token in Settings.</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
                 </div>
               </div>
             )}

@@ -8,6 +8,7 @@ export interface FigmaConnection {
   userName: string;
   userEmail: string;
   lastValidatedAt: string | null;
+  authType?: string;
 }
 
 export interface SourceFile {
@@ -49,7 +50,7 @@ export interface RegisteredFile {
 
 export interface ScanBatch {
   id: string;
-  status: 'pending' | 'running' | 'success' | 'partial_success' | 'failed' | 'paused';
+  status: 'pending' | 'running' | 'success' | 'partial_success' | 'failed' | 'paused' | 'cancelled';
   totalFiles: number;
   completedFiles: number;
   failedFiles: number;
@@ -62,7 +63,7 @@ export interface ScanJob {
   id: string;
   batchId: string | null;
   registeredFileId: string;
-  status: 'pending' | 'running' | 'success' | 'failed' | 'paused';
+  status: 'pending' | 'running' | 'success' | 'failed' | 'paused' | 'cancelled';
   startedAt: string | null;
   finishedAt: string | null;
   durationMs: number | null;

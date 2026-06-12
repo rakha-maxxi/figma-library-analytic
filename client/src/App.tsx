@@ -61,6 +61,18 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Handle custom programmatic tab switching
+  useEffect(() => {
+    const handleTabChange = (e: Event) => {
+      const customEvent = e as CustomEvent<string>;
+      if (customEvent.detail) {
+        setTab(customEvent.detail);
+      }
+    };
+    window.addEventListener('change-tab', handleTabChange);
+    return () => window.removeEventListener('change-tab', handleTabChange);
+  }, []);
+
   const handleConnectToken = (e: React.FormEvent) => {
     e.preventDefault();
     if (!pat) {

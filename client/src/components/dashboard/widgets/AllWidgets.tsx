@@ -9,59 +9,84 @@ import {
   PlusCircleIcon, MinusCircleIcon, CheckCircle2Icon,
   ClockIcon, FileTextIcon, ActivityIcon, ZapIcon,
   ShieldCheckIcon, ShieldAlertIcon, ShieldXIcon,
-  BarChart3Icon, LightbulbIcon, ArrowRightIcon,
+  ArrowRightIcon,
   RefreshCwIcon, EyeIcon,
 } from 'lucide-react';
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { Progress, ProgressLabel, ProgressValue } from '../../ui/progress';
 
 export const SummaryMetricsWidget: React.FC<WidgetProps> = ({ layout }) => {
-  const { data: files } = useRegisteredFiles();
   const { data: components } = useComponents();
-  const { data: insights } = useInsights();
-  const totalInstances = files?.reduce((a, f) => a + (f.trackingEnabled ? f.totalInstances : 0), 0) || 0;
-  const activeFiles = files?.filter(f => f.trackingEnabled).length || 0;
-  const lastScan = files?.filter(f => f.lastSuccessfulScanAt).map(f => new Date(f.lastSuccessfulScanAt!).getTime()) || [];
-  const latest = lastScan.length ? new Date(Math.max(...lastScan)) : null;
+  const { data: batches } = useScanBatches();
+
+  const totalComps = components?.length || 0;
+  const usedComps = (components || []).filter(c => (c as unknown as { totalInstances: number }).totalInstances > 0).length;
+  const unusedComps = totalComps - usedComps;
+  const adoptionRate = totalComps > 0 ? Math.round((usedComps / totalComps) * 100) : 0;
+
+  const latestBatch = batches?.[0];
+  const lastScanStatus = latestBatch ? latestBatch.status : 'no_scans';
+
+  const statusLabel = (status: string) => {
+    switch (status) {
+      case 'success':
+        return { label: 'Sync Success', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' };
+      case 'failed':
+        return { label: 'Sync Failed', cls: 'bg-rose-500/10 text-rose-400 border-rose-500/20' };
+      case 'running':
+        return { label: 'Scanning...', cls: 'bg-sky-500/10 text-sky-400 border-sky-500/20 animate-pulse' };
+      case 'partial_success':
+        return { label: 'Partial Success', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' };
+      default:
+        return { label: 'No Scans Run', cls: 'bg-muted text-muted-foreground' };
+    }
+  };
+
+  const status = statusLabel(lastScanStatus);
+
   return (
     <WidgetCard layout={layout} title="Summary Metrics">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="border border-border rounded-md p-3 bg-muted/10 text-center">
-          <LayersIcon className="size-4 text-violet-500 mx-auto mb-1" />
-          <p className="text-xl font-bold font-mono tabular-nums">{totalInstances}</p>
-          <p className="text-[10px] text-muted-foreground">Direct Instances</p>
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="border border-border/60 rounded-xl p-3 bg-muted/5 flex flex-col items-center justify-between text-center min-h-[90px]">
+          <LayersIcon className="size-4.5 text-violet-500 mb-1" />
+          <div>
+            <p className="text-2xl font-bold font-mono tracking-tight tabular-nums">{totalComps}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Total Components</p>
+          </div>
         </div>
-        <div className="border border-border rounded-md p-3 bg-muted/10 text-center">
-          <ZapIcon className="size-4 text-emerald-500 mx-auto mb-1" />
-          <p className="text-xl font-bold font-mono tabular-nums">{components?.length || 0}</p>
-          <p className="text-[10px] text-muted-foreground">Source Components</p>
+        <div className="border border-border/60 rounded-xl p-3 bg-muted/5 flex flex-col items-center justify-between text-center min-h-[90px]">
+          <ShieldCheckIcon className="size-4.5 text-emerald-500 mb-1" />
+          <div>
+            <p className="text-2xl font-bold font-mono tracking-tight tabular-nums">{usedComps}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Used Components</p>
+          </div>
         </div>
-        <div className="border border-border rounded-md p-3 bg-muted/10 text-center">
-          <FileTextIcon className="size-4 text-sky-500 mx-auto mb-1" />
-          <p className="text-xl font-bold font-mono tabular-nums">{activeFiles}</p>
-          <p className="text-[10px] text-muted-foreground">Tracked Files</p>
+        <div className="border border-border/60 rounded-xl p-3 bg-muted/5 flex flex-col items-center justify-between text-center min-h-[90px]">
+          <AlertTriangleIcon className="size-4.5 text-amber-500 mb-1" />
+          <div>
+            <p className="text-2xl font-bold font-mono tracking-tight tabular-nums">{unusedComps}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Unused Components</p>
+          </div>
         </div>
-        <div className="border border-border rounded-md p-3 bg-muted/10 text-center">
-          <ClockIcon className="size-4 text-amber-500 mx-auto mb-1" />
-          <p className="text-xl font-bold font-mono tabular-nums">{latest ? latest.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '—'}</p>
-          <p className="text-[10px] text-muted-foreground">Latest Scan</p>
+        <div className="border border-border/60 rounded-xl p-3 bg-muted/5 flex flex-col items-center justify-between text-center min-h-[90px]">
+          <TrendingUpIcon className="size-4.5 text-sky-500 mb-1" />
+          <div>
+            <p className="text-2xl font-bold font-mono tracking-tight tabular-nums">{adoptionRate}%</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Adoption Rate</p>
+          </div>
+        </div>
+        <div className="border border-border/60 rounded-xl p-3 bg-muted/5 flex flex-col items-center justify-between text-center min-h-[90px] col-span-2 sm:col-span-1">
+          <ClockIcon className="size-4.5 text-rose-500 mb-1" />
+          <div className="flex flex-col items-center">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full border font-semibold ${status.cls}`}>
+              {status.label}
+            </span>
+            <p className="text-[9px] text-muted-foreground mt-1.5 font-mono">
+              {latestBatch?.finishedAt ? new Date(latestBatch.finishedAt).toLocaleDateString() : 'Never'}
+            </p>
+          </div>
         </div>
       </div>
-      {insights && (
-        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-border/40 flex-wrap">
-          <Badge className="text-[10px] bg-rose-500/10 text-rose-400 border-rose-500/20">
-            <AlertTriangleIcon className="size-3 mr-0.5" />
-            {insights.unusedComponents?.length || 0} unused
-          </Badge>
-          <Badge className="text-[10px] bg-amber-500/10 text-amber-400 border-amber-500/20">
-            <TrendingDownIcon className="size-3 mr-0.5" />
-            {insights.lowUsageComponents?.length || 0} low usage
-          </Badge>
-          <Badge className="text-[10px] bg-sky-500/10 text-sky-400 border-sky-500/20">
-            <ZapIcon className="size-3 mr-0.5" />
-            {insights.failedScansCount} failed scans
-          </Badge>
-        </div>
-      )}
     </WidgetCard>
   );
 };
@@ -164,37 +189,74 @@ export const TopUsedComponentsWidget: React.FC<WidgetProps> = ({ layout }) => {
 
 export const FilesNeedingAttentionWidget: React.FC<WidgetProps> = ({ layout }) => {
   const { data: files } = useRegisteredFiles();
-  const failing = (files || []).filter(f => f.status === 'failed' || f.status === 'stale' || (f.status === 'zero_usage' && f.trackingEnabled));
-  const reasonLabel = (s: string) => {
-    switch (s) {
-      case 'failed': return { label: 'Failed', cls: 'bg-rose-500/10 text-rose-500 border-rose-500/20' };
-      case 'stale': return { label: 'Stale', cls: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20' };
-      case 'zero_usage': return { label: 'Zero Usage', cls: 'bg-muted text-muted-foreground' };
-      default: return { label: s, cls: '' };
-    }
-  };
+  const { data: batches } = useScanBatches();
+  const { data: insights } = useInsights();
+  
+  const failingFiles = (files || []).filter(f => f.status === 'failed' || f.status === 'stale' || (f.status === 'zero_usage' && f.trackingEnabled));
+  const failedBatches = (batches || []).filter(b => b.failedFiles > 0).slice(0, 3);
+  const staleCount = insights?.staleFiles?.length || 0;
+  const unusedCount = insights?.unusedComponents?.length || 0;
+  
+  const hasIssues = failingFiles.length > 0 || failedBatches.length > 0 || staleCount > 0;
+
   return (
-    <WidgetCard layout={layout} title="Files Needing Attention">
-      {failing.length > 0 ? (
-        <div className="space-y-2 max-h-[240px] overflow-y-auto">
-          {failing.map(f => {
-            const r = reasonLabel(f.status);
-            return (
-              <div key={f.id} className="flex items-center justify-between text-xs border rounded-md p-2.5 bg-muted/10">
-                <div className="min-w-0 flex-1">
-                  <p className="font-medium truncate">{f.name}</p>
+    <WidgetCard layout={layout} title="Needs Attention">
+      {hasIssues ? (
+        <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
+          {/* Failed Scan Batches */}
+          {failedBatches.map(b => (
+            <div key={b.id} className="border border-rose-500/20 rounded-lg p-3 bg-rose-500/5 flex items-start justify-between gap-3 text-xs animate-in fade-in duration-200">
+              <div className="flex items-start gap-2">
+                <ShieldXIcon className="size-4 text-rose-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-semibold text-foreground">Scan Batch Failure</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {b.failedFiles} of {b.totalFiles} files failed to scan on {b.finishedAt ? new Date(b.finishedAt).toLocaleDateString() : 'recent run'}.
+                  </p>
+                </div>
+              </div>
+              <Badge className="text-[9px] bg-rose-500/10 text-rose-400 shrink-0">Batch Error</Badge>
+            </div>
+          ))}
+
+          {/* Failing or Stale Files */}
+          {failingFiles.map(f => (
+            <div key={f.id} className="border border-border rounded-lg p-3 bg-muted/5 flex items-start justify-between gap-3 text-xs animate-in fade-in duration-200">
+              <div className="flex items-start gap-2 min-w-0">
+                {f.status === 'failed' ? (
+                  <AlertTriangleIcon className="size-4 text-rose-500 shrink-0 mt-0.5" />
+                ) : (
+                  <ClockIcon className="size-4 text-amber-500 shrink-0 mt-0.5" />
+                )}
+                <div className="min-w-0">
+                  <p className="font-medium text-foreground truncate">{f.name}</p>
                   <p className="text-[10px] text-muted-foreground font-mono truncate">{f.figmaFileKey}</p>
                 </div>
-                <Badge className={`text-[9px] shrink-0 ml-2 ${r.cls}`}>{r.label}</Badge>
               </div>
-            );
-          })}
+              <Badge className={`text-[9px] shrink-0 ${f.status === 'failed' ? 'bg-rose-500/10 text-rose-400' : 'bg-amber-500/10 text-amber-400'}`}>
+                {f.status === 'failed' ? 'Scan Failed' : 'Stale Scan'}
+              </Badge>
+            </div>
+          ))}
+
+          {/* Unused Components Warning */}
+          {unusedCount > 10 && (
+            <div className="border border-amber-500/20 rounded-lg p-3 bg-amber-500/5 flex items-start gap-2.5 text-xs animate-in fade-in duration-200">
+              <AlertTriangleIcon className="size-4 text-amber-500 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-foreground">High Number of Unused Components</p>
+                <p className="text-[10px] text-muted-foreground">
+                  {unusedCount} components in the source library are completely unused. Go to Insights to clean them up.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground gap-1">
-          <CheckCircle2Icon className="size-6 mb-1 text-emerald-500/30" />
-          <p className="text-xs font-semibold text-foreground/60">All files are healthy</p>
-          <p className="text-[10px]">No files need attention right now.</p>
+        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
+          <CheckCircle2Icon className="size-8 text-emerald-500/40" />
+          <p className="text-xs font-semibold text-foreground/60">All systems operational</p>
+          <p className="text-[10px]">Your Figma libraries and consumer design files are fully synced and healthy.</p>
         </div>
       )}
     </WidgetCard>
@@ -517,8 +579,6 @@ export const HealthSummaryWidget: React.FC<WidgetProps> = ({ layout }) => {
   );
 };
 
-const colorByPct = (pct: number) => pct >= 50 ? '#10b981' : pct >= 20 ? '#f59e0b' : '#ef4444';
-
 export const AdoptionCoverageWidget: React.FC<WidgetProps> = ({ layout }) => {
   const { data: components } = useComponents();
   const total = components?.length || 0;
@@ -526,15 +586,14 @@ export const AdoptionCoverageWidget: React.FC<WidgetProps> = ({ layout }) => {
   const pct = total > 0 ? Math.round((used / total) * 100) : 0;
   return (
     <WidgetCard layout={layout} title="Adoption Coverage">
-      <div className="py-3">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-muted-foreground">{used} / {total} components used</span>
-          <span className="text-sm font-bold font-mono tabular-nums" style={{ color: colorByPct(pct) }}>{pct}%</span>
-        </div>
-        <div className="h-3 bg-muted rounded-full overflow-hidden flex">
-          <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: colorByPct(pct) }} />
-        </div>
-        <div className="flex justify-between text-[10px] text-muted-foreground mt-1">
+      <div className="py-2 flex flex-col gap-3">
+        <Progress value={pct} className="w-full flex-col items-stretch gap-2">
+          <div className="flex items-center justify-between text-xs w-full">
+            <ProgressLabel className="text-muted-foreground font-normal">Component adoption rate</ProgressLabel>
+            <ProgressValue className="font-mono font-bold text-foreground" />
+          </div>
+        </Progress>
+        <div className="flex justify-between text-[10px] text-muted-foreground/85 mt-1 border-t border-border/35 pt-2 font-mono">
           <span>Used: {used}</span>
           <span>Unused: {total - used}</span>
         </div>
@@ -546,41 +605,119 @@ export const AdoptionCoverageWidget: React.FC<WidgetProps> = ({ layout }) => {
 export const NextActionsWidget: React.FC<WidgetProps> = ({ layout }) => {
   const { data: files } = useRegisteredFiles();
   const { data: insights } = useInsights();
-  const { data: components } = useComponents();
-  const actions: Array<{ label: string; desc: string; icon: typeof AlertTriangleIcon; color: string }> = [];
+
+  const actions: Array<{ label: string; desc: string; icon: typeof AlertTriangleIcon; color: string; tab: string }> = [];
   const unused = insights?.unusedComponents?.length || 0;
   const lowUsage = insights?.lowUsageComponents?.length || 0;
   const failed = insights?.failedScansCount || 0;
   const staleFilesCount = insights?.staleFiles?.length || 0;
   const zeroUsageFiles = (files || []).filter(f => f.status === 'zero_usage' && f.trackingEnabled).length;
-  const totalComps = components?.length || 0;
   const unscannedFiles = (files || []).filter(f => f.status === 'not_scanned' && f.trackingEnabled).length;
 
-  if (unused > 0) actions.push({ label: `Review ${unused} unused components`, desc: 'Components with zero instances', icon: AlertTriangleIcon, color: 'amber' });
-  if (zeroUsageFiles > 0) actions.push({ label: `Inspect ${zeroUsageFiles} zero-usage files`, desc: 'Registered files with no DS components', icon: FileTextIcon, color: 'muted' });
-  if (failed > 0) actions.push({ label: `Retry ${failed} failed scans`, desc: 'Files that failed during last scan', icon: ZapIcon, color: 'rose' });
-  if (lowUsage > 0) actions.push({ label: `Review ${lowUsage} low-usage components`, desc: 'Components below adoption threshold', icon: TrendingDownIcon, color: 'violet' });
-  if (staleFilesCount > 0) actions.push({ label: `Re-scan ${staleFilesCount} stale files`, desc: 'Files not scanned within threshold', icon: ClockIcon, color: 'yellow' });
-  if (unscannedFiles > 0) actions.push({ label: `Scan ${unscannedFiles} new files`, desc: 'Consumer files not yet scanned', icon: RefreshCwIcon, color: 'sky' });
-  if (actions.length === 0) {
-    actions.push({ label: 'Run another scan', desc: 'Keep adoption data fresh', icon: RefreshCwIcon, color: 'sky' });
-    actions.push({ label: 'View component inventory', desc: 'Browse source UI Kit components', icon: EyeIcon, color: 'violet' });
+  if (failed > 0) {
+    actions.push({ 
+      label: `Inspect ${failed} failed scans`, 
+      desc: 'crawler jobs with rate or scope issues', 
+      icon: ShieldXIcon, 
+      color: 'rose', 
+      tab: 'scans' 
+    });
   }
+  if (unscannedFiles > 0) {
+    actions.push({ 
+      label: `Scan ${unscannedFiles} new files`, 
+      desc: 'consumer files not yet analyzed', 
+      icon: RefreshCwIcon, 
+      color: 'sky', 
+      tab: 'scans' 
+    });
+  }
+  if (staleFilesCount > 0) {
+    actions.push({ 
+      label: `Re-scan ${staleFilesCount} stale files`, 
+      desc: 'freshness threshold exceeded', 
+      icon: ClockIcon, 
+      color: 'yellow', 
+      tab: 'scans' 
+    });
+  }
+  if (unused > 0) {
+    actions.push({ 
+      label: `Review ${unused} unused components`, 
+      desc: 'source elements with zero usage', 
+      icon: AlertTriangleIcon, 
+      color: 'amber', 
+      tab: 'insights' 
+    });
+  }
+  if (lowUsage > 0) {
+    actions.push({ 
+      label: `Review ${lowUsage} low-usage elements`, 
+      desc: 'components below adoption goal', 
+      icon: TrendingDownIcon, 
+      color: 'violet', 
+      tab: 'insights' 
+    });
+  }
+  if (zeroUsageFiles > 0) {
+    actions.push({ 
+      label: `Check ${zeroUsageFiles} zero-usage files`, 
+      desc: 'files without design system elements', 
+      icon: FileTextIcon, 
+      color: 'muted', 
+      tab: 'files' 
+    });
+  }
+
+  if (actions.length === 0) {
+    actions.push({ 
+      label: 'Run new scan batch', 
+      desc: 'keep design system metrics fresh', 
+      icon: RefreshCwIcon, 
+      color: 'sky', 
+      tab: 'scans' 
+    });
+    actions.push({ 
+      label: 'Browse component inventory', 
+      desc: 'view source component metadata', 
+      icon: EyeIcon, 
+      color: 'violet', 
+      tab: 'components' 
+    });
+  }
+
+  const navigateToTab = (tabId: string) => {
+    window.dispatchEvent(new CustomEvent('change-tab', { detail: tabId }));
+  };
+
   return (
     <WidgetCard layout={layout} title="Recommended Next Actions">
       <div className="space-y-2">
-        {actions.map((a, i) => {
+        {actions.slice(0, 4).map((a, i) => {
           const Icon = a.icon;
-          const cmap: Record<string, string> = { amber: 'text-amber-500 bg-amber-500/10', rose: 'text-rose-500 bg-rose-500/10', violet: 'text-violet-500 bg-violet-500/10', yellow: 'text-yellow-500 bg-yellow-500/10', sky: 'text-sky-500 bg-sky-500/10', muted: 'text-muted-foreground bg-muted' };
+          const cmap: Record<string, string> = { 
+            amber: 'text-amber-500 bg-amber-500/10 border-amber-500/20', 
+            rose: 'text-rose-500 bg-rose-500/10 border-rose-500/20', 
+            violet: 'text-violet-500 bg-violet-500/10 border-violet-500/20', 
+            yellow: 'text-yellow-500 bg-yellow-500/10 border-yellow-500/20', 
+            sky: 'text-sky-500 bg-sky-500/10 border-sky-500/20', 
+            muted: 'text-muted-foreground bg-muted border-border' 
+          };
           return (
-            <div key={i} className="flex items-center gap-3 border border-border/60 rounded-md p-2.5 bg-muted/5 hover:bg-muted/10 cursor-pointer transition-colors">
-              <div className={`p-1.5 rounded-md shrink-0 ${cmap[a.color]}`}><Icon className="size-3.5" /></div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-foreground">{a.label}</p>
-                <p className="text-[10px] text-muted-foreground">{a.desc}</p>
+            <button
+              key={i}
+              onClick={() => navigateToTab(a.tab)}
+              className="w-full text-left flex items-center gap-3 border border-border/50 rounded-xl p-3 bg-card hover:bg-muted/10 active:scale-[0.97] transition-all cursor-pointer shadow-sm group select-none"
+            >
+              <div className={`p-2 rounded-lg shrink-0 border ${cmap[a.color]}`}>
+                <Icon className="size-4" />
               </div>
-              <ArrowRightIcon className="size-3 text-muted-foreground shrink-0" />
-            </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">{a.label}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{a.desc}</p>
+              </div>
+              <ArrowRightIcon className="size-3.5 text-muted-foreground shrink-0 group-hover:translate-x-0.5 transition-transform" />
+            </button>
           );
         })}
       </div>
